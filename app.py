@@ -792,29 +792,26 @@ def main():
             books_stuck = st.checkbox("📚 יש ספרים תקועים בלוקר?", value=False, help="האם התלמיד צריך את הספרים בדחיפות?")
             
             description = st.text_area(
-                "תיאור",
-                placeholder="תאר את התקלה בפירוט...",
+                "תיאור (אופציונלי)",
+                placeholder="תאר את התקלה בפירוט (לא חובה)...",
                 height=100
             )
             
             # Submit button
             if st.button("📤 שלח דיווח תקלה", type="primary", use_container_width=True):
-                if description.strip():
-                    new_fault = save_fault(
-                        student_id_ext=student_id,
-                        locker_id=locker_id,
-                        fault_type=fault_type,
-                        books_stuck=books_stuck,
-                        is_urgent=is_urgent,
-                        description=description
-                    )
-                    
-                    if new_fault:
-                        st.success(f"✅ תקלה #{new_fault['id']} דווחה בהצלחה!")
-                        st.balloons()
-                        st.rerun()
-                else:
-                    st.error("נא לספק תיאור של התקלה.")
+                new_fault = save_fault(
+                    student_id_ext=student_id,
+                    locker_id=locker_id,
+                    fault_type=fault_type,
+                    books_stuck=books_stuck,
+                    is_urgent=is_urgent,
+                    description=description if description.strip() else None
+                )
+                
+                if new_fault:
+                    st.success(f"✅ תקלה #{new_fault['id']} דווחה בהצלחה!")
+                    st.balloons()
+                    st.rerun()
         
         except Exception as e:
             st.error(f"שגיאה בטעינת תלמידים: {e}")
