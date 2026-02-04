@@ -16,14 +16,14 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path='../.env')
+load_dotenv()
 
 # ============================================================================
 # DATABASE CONFIGURATION
 # ============================================================================
 
 # PostgreSQL Connection (Read-Only - Legacy Data)
-POSTGRES_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:koren7@localhost:5432/loker_test')
+POSTGRES_URL = os.getenv('DATABASE_URL', 'postgresql://team41:xBjwE7X6BjQjARSGTFcWOg7TJ0ZiQbyq@dpg-d615mm24d50c73eh9o0g-a.oregon-postgres.render.com/studentlocker')
 postgres_engine = create_engine(POSTGRES_URL, echo=False)
 
 # SQLite Connection (Write - New Data)
@@ -162,26 +162,49 @@ def get_students():
     Fetch students from PostgreSQL (Read-Only)
     Returns a pandas DataFrame with student information
     """
-    query = """
-        SELECT DISTINCT
-            s.id,
-            s."fname",
-            s."lname",
-            s."studentId",
-            s.class,
-            s."classNumber",
-            s."parentPhone",
-            s.email,
-            sc.name as school_name
-        FROM "Student" s
-        LEFT JOIN "School" sc ON s."schoolId" = sc.id
-        ORDER BY s."fname", s."lname"
-    """
-    
-    with postgres_engine.connect() as conn:
-        df = pd.read_sql(query, conn)
-    
-    return df
+    # Try with School table first, fallback to Student only
+    try:
+        query = """
+            SELECT DISTINCT
+                s.id,
+                s."fname",
+                s."lname",
+                s."studentId",
+                s.class,
+                s."classNumber",
+                s."parentPhone",
+                s.email,
+                sc.name as school_name
+            FROM "Student" s
+            LEFT JOIN "School" sc ON s."schoolId" = sc.id
+            ORDER BY s."fname", s."lname"
+        """
+        
+        with postgres_engine.connect() as conn:
+            df = pd.read_sql(query, conn)
+        
+        return df
+    except Exception:
+        # Fallback: query without School table
+        query = """
+            SELECT DISTINCT
+                s.id,
+                s.fname,
+                s.lname,
+                s."studentId",
+                s.class,
+                s."classNumber",
+                s."parentPhone",
+                s.email,
+                NULL as school_name
+            FROM "Student" s
+            ORDER BY s.fname, s.lname
+        """
+        
+        with postgres_engine.connect() as conn:
+            df = pd.read_sql(query, conn)
+        
+        return df
 
 def get_student_locker(student_id):
     """
@@ -279,22 +302,37 @@ def get_faults_with_student_info():
     student_ids = list(set([f.student_id_ext for f in faults]))
     student_ids_str = "','".join(student_ids)
     
-    # Fetch student info from PostgreSQL
-    query = f"""
-        SELECT 
-            s.id,
-            s."fname" || ' ' || s."lname" as student_name,
-            s."studentId",
-            sc.name as school_name
-        FROM "Student" s
-        LEFT JOIN "School" sc ON s."schoolId" = sc.id
-        WHERE s.id IN ('{student_ids_str}')
-    """
-    
+    # Fetch student info from PostgreSQL (try with School, fallback without)
     try:
+        query = f"""
+            SELECT 
+                s.id,
+                s.fname || ' ' || s.lname as student_name,
+                s."studentId",
+                sc.name as school_name
+            FROM "Student" s
+            LEFT JOIN "School" sc ON s."schoolId" = sc.id
+            WHERE s.id IN ('{student_ids_str}')
+        """
+        
         with postgres_engine.connect() as conn:
             students_df = pd.read_sql(query, conn)
+    except Exception:
+        # Fallback: query without School table
+        query = f"""
+            SELECT 
+                s.id,
+                s.fname || ' ' || s.lname as student_name,
+                s."studentId",
+                NULL as school_name
+            FROM "Student" s
+            WHERE s.id IN ('{student_ids_str}')
+        """
         
+        with postgres_engine.connect() as conn:
+            students_df = pd.read_sql(query, conn)
+    
+    try:
         # Create enriched fault data
         enriched_data = []
         for fault in faults:
@@ -305,7 +343,7 @@ def get_faults_with_student_info():
                 student_row = student_info.iloc[0]
                 fault_dict['student_name'] = student_row['student_name']
                 fault_dict['studentId'] = student_row['studentId']
-                fault_dict['school_name'] = student_row['school_name']
+                fault_dict['school_name'] = student_row.get('school_name', 'N/A')
             else:
                 fault_dict['student_name'] = 'Unknown'
                 fault_dict['studentId'] = 'N/A'

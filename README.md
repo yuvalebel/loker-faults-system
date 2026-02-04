@@ -22,15 +22,42 @@
 
 ## התקנה
 
-1. התקן את הספריות הנדרשות:
+### עבור חברי צוות (המלצה)
+
+1. **שכפל את הפרויקט**:
+```bash
+git clone <repository-url>
+cd loker-faults-system
+```
+
+2. **התקן ספריות**:
 ```bash
 pip install -r requirements.txt
 ```
 
+3. **צור קובץ `.env`** (או העתק מ-`.env.example`):
+```env
+DATABASE_URL=postgresql://team41:xBjwE7X6BjQjARSGTFcWOg7TJ0ZiQbyq@dpg-d615mm24d50c73eh9o0g-a.oregon-postgres.render.com/studentlocker
+```
+
+4. **הרץ**:
+```bash
+streamlit run app.py
+```
+
+### עבור המפתח הראשי (פעם אחת)
+
+אם אתה המפתח הראשי ויש לך נתונים במסד מקומי:
+
+```bash
+python init_cloud_db.py
+```
+
+הסקריפט יעתיק את טבלת התלמידים מהמקומי לענן.
+
 ## הרצת האפליקציה
 
 ```bash
-cd AdonLocker_Project
 streamlit run app.py
 ```
 
