@@ -50,6 +50,34 @@ def get_severity(fault_type):
     return SEVERITY_MAP.get(fault_type, 1)
 
 # ============================================================================
+# SCHOOL TO REGION MAPPING - Intelligence Layer
+# ============================================================================
+# This mapping determines which region each school belongs to
+# The database only stores school_name, region is determined here
+
+SCHOOL_MAPPING = {
+    'שש שנתי אשל הנשיא': 'South', 'חטיבת הביניים סוסיא': 'South', 'טכני חיל האוויר': 'South',
+    'אמית ברוכין': 'Center', 'אולפנת קרני שומרון': 'Center', 'להבה': 'Center',
+    'בעברית תיכון אוניברסי': 'Jerusalem', 'אמי״ת בנים מודיעין': 'Jerusalem', 'תבל רמות': 'Jerusalem',
+    'ישיבת שעלבים': 'Jerusalem', 'ענבר': 'Jerusalem', 'נשמת התורה': 'Jerusalem',
+    'מכון לב': 'Jerusalem', 'אמי"ת מעלה אדומים': 'Jerusalem', 'אולפנת שעלבים': 'Jerusalem',
+    'אורט תעשייה אווירית': 'Center', 'לאורו נלך': 'Center', 'מיכה רייסר': 'Center',
+    'צמרות': 'Center', 'אולפנת צביה לוד': 'Center', 'מקיף י׳ אלברט איינשטיי': 'Center',
+    'אולפנת יבנה': 'Center', 'אמירים (מקיף ה)': 'Center', "מקיף ז' רביבים": 'Center',
+    'אמי"ת בנות מודיעין': 'Center', 'נתיבות רבקה': 'Center', 'סמינר שושנים': 'Center',
+    'קינג סולומון הכפר הירו': 'Center', 'פלך': 'Center', 'בר אילן': 'Center',
+    'שובו': 'Center', 'בית ספר יצחק שמיר': 'Center', 'מאיר שלו': 'Center',
+    'אולפנת רמלה': 'Center', 'קריית חינוך חטיבה': 'North', 'אלדד נתניה': 'North',
+    'אולפנית מירון': 'North', 'תיכון נשר': 'North', 'אולפנית אמונה אלישבע': 'North',
+    'כרמים': 'North', 'אולפנת סגולה': 'North', 'אסיף': 'North', 'שבילים': 'North',
+    'חטיבת יונתן': 'Lowland', 'גולדה': 'Lowland', 'אולפנית ישורון': 'Lowland', 'רמון': 'Lowland'
+}
+
+def get_school_region(school_name):
+    """Get region for a school based on SCHOOL_MAPPING"""
+    return SCHOOL_MAPPING.get(school_name, 'Unknown')
+
+# ============================================================================
 # SQLITE MODEL - New Faults Table
 # ============================================================================
 
@@ -176,7 +204,7 @@ def get_students():
                 s.email,
                 sc.name as school_name
             FROM "Student" s
-            LEFT JOIN "School" sc ON s."schoolId" = sc.id
+            LEFT JOIN "School" sc ON s."schoolId" = CAST(sc.id AS TEXT)
             ORDER BY s."fname", s."lname"
         """
         
@@ -311,7 +339,7 @@ def get_faults_with_student_info():
                 s."studentId",
                 sc.name as school_name
             FROM "Student" s
-            LEFT JOIN "School" sc ON s."schoolId" = sc.id
+            LEFT JOIN "School" sc ON s."schoolId" = CAST(sc.id AS TEXT)
             WHERE s.id IN ('{student_ids_str}')
         """
         
@@ -749,6 +777,19 @@ def main():
             st.metric("תקלות פתוחות", len([f for f in faults if f.status == 'Open']))
         except Exception as e:
             st.error(f"Error loading statistics: {e}")
+        
+        # Smart Scheduling Configuration
+        st.divider()
+        st.header("⚙️ הגדרות תזמון חכם")
+        
+        num_technicians = st.number_input(
+            "מספר טכנאים זמינים",
+            min_value=1,
+            max_value=10,
+            value=1,
+            step=1,
+            help="כמה טכנאים זמינים לטיפול בתקלות?"
+        )
     
     # Main tabs
     tab1, tab2, tab3 = st.tabs(["📝 דיווח תקלה חדשה", "📋 צפייה בכל התקלות", "👥 רשימת תלמידים"])
@@ -767,8 +808,8 @@ def main():
             # Create student display name
             students_df['display_name'] = (
                 students_df['fname'] + ' ' + 
-                students_df['lname'] + ' (' + 
-                students_df['studentId'] + ') - ' + 
+                students_df['lname'] + ' | ת.ז: ' + 
+                students_df['studentId'] + ' | ' + 
                 students_df['school_name'].fillna('אין בית ספר')
             )
             
@@ -789,7 +830,7 @@ def main():
                 # Display student info
                 st.info(f"**תלמיד:** {selected_student['fname']} {selected_student['lname']}\n\n"
                        f"**ת.ז:** {selected_student['studentId']}\n\n"
-                       f"**כיתה:** {selected_student['class']}'{selected_student['classNumber']}\n\n"
+                       f"**כיתה:** {selected_student['class']}' {selected_student['classNumber']}\n\n"
                        f"**בית ספר:** {selected_student['school_name']}")
             
             with col2:
@@ -915,10 +956,14 @@ def main():
                     'description', 'created_at'
                 ]].copy()
                 
+                # Format student ID for better display
+                display_df['studentId'] = display_df['studentId'].astype(str)
+                display_df['school_name'] = display_df['school_name'].fillna('לא ידוע')
+                
                 display_df.columns = [
-                    'מזהה תקלה', 'שם תלמיד', 'מספר תלמיד', 'בית ספר',
+                    'מזהה', 'שם התלמיד', 'ת.ז תלמיד', 'בית ספר',
                     'סוג תקלה', 'חומרה', 'ספרים תקועים', 'דחוף', 'סטטוס', 
-                    'תיאור', 'תאריך יצירה'
+                    'תיאור', 'נוצר בתאריך'
                 ]
                 
                 st.dataframe(
