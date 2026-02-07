@@ -22,13 +22,34 @@ load_dotenv()
 # DATABASE CONFIGURATION
 # ============================================================================
 
-# PostgreSQL Connection (Read-Only - Legacy Data)
+# Database URLs
 POSTGRES_URL = os.getenv('DATABASE_URL', 'postgresql://team41:xBjwE7X6BjQjARSGTFcWOg7TJ0ZiQbyq@dpg-d615mm24d50c73eh9o0g-a.oregon-postgres.render.com/studentlocker')
-postgres_engine = create_engine(POSTGRES_URL, echo=False)
-
-# SQLite Connection (Write - New Data)
 SQLITE_URL = 'sqlite:///faults_system.db'
-sqlite_engine = create_engine(SQLITE_URL, echo=False)
+
+@st.cache_resource
+def init_db_connection():
+    """
+    Initialize and cache database connections.
+    This prevents recreating connections on every rerun.
+    Returns: tuple of (postgres_engine, sqlite_engine)
+    """
+    postgres_engine = create_engine(
+        POSTGRES_URL,
+        echo=False,
+        pool_pre_ping=True,  # Verify connection health
+        pool_recycle=3600    # Recycle connections after 1 hour
+    )
+    
+    sqlite_engine = create_engine(
+        SQLITE_URL,
+        echo=False,
+        connect_args={'check_same_thread': False}
+    )
+    
+    return postgres_engine, sqlite_engine
+
+# Get cached database engines
+postgres_engine, sqlite_engine = init_db_connection()
 
 Base = declarative_base()
 
@@ -271,6 +292,9 @@ def save_fault(student_id_ext, locker_id, fault_type, books_stuck, is_urgent, de
         # חישוב חומרה אוטומטי לפי סוג התקלה
         severity = get_severity(fault_type)
         
+        # תקלה דחופה = ספרים תקועים בלוקר
+        is_urgent = books_stuck
+        
         new_fault = Fault(
             student_id_ext=student_id_ext,
             locker_id=locker_id,
@@ -443,6 +467,161 @@ def delete_fault(fault_id):
         return False
     finally:
         session.close()
+
+@st.dialog("פרטי תקלה")
+def show_fault_details(fault_id):
+    """
+    Display fault details in a dialog with view/edit modes
+    """
+    # קבלת האובייקט המלא מהמסד נתונים
+    fault_obj = get_fault_by_id(fault_id)
+    
+    if not fault_obj:
+        st.error("❌ תקלה לא נמצאה")
+        return
+    
+    # המרה למילון עם מידע תלמיד
+    try:
+        # שליפת מידע תלמיד
+        query = f"""
+            SELECT 
+                s.fname || ' ' || s.lname as student_name,
+                s."studentId",
+                sc.name as school_name
+            FROM "Student" s
+            LEFT JOIN "School" sc ON s."schoolId" = CAST(sc.id AS TEXT)
+            WHERE s.id = '{fault_obj.student_id_ext}'
+        """
+        with postgres_engine.connect() as conn:
+            student_df = pd.read_sql(query, conn)
+        
+        if not student_df.empty:
+            student_info = student_df.iloc[0]
+            student_name = student_info['student_name']
+            student_id = student_info['studentId']
+            school_name = student_info.get('school_name', 'לא ידוע')
+        else:
+            student_name = "לא ידוע"
+            student_id = "N/A"
+            school_name = "לא ידוע"
+    except:
+        student_name = "לא ידוע"
+        student_id = "N/A"
+        school_name = "לא ידוע"
+    
+    # ניהול מצב עריכה
+    if 'edit_mode' not in st.session_state:
+        st.session_state.edit_mode = False
+    
+    st.markdown(f"### תקלה מספר #{fault_id}")
+    st.divider()
+    
+    # מצב צפייה
+    if not st.session_state.edit_mode:
+        st.markdown(f"""
+        **📋 פרטי התקלה:**
+        - **שם תלמיד:** {student_name}
+        - **ת.ז:** {student_id}
+        - **בית ספר:** {school_name}
+        - **מספר לוקר:** {fault_obj.locker_id or 'לא צוין'}
+        - **סוג תקלה:** {fault_obj.fault_type}
+        - **חומרה:** {'⭐' * fault_obj.severity} ({fault_obj.severity}/5)
+        - **ספרים תקועים:** {'✅ כן' if fault_obj.books_stuck else '❌ לא'}
+        - **נוצר בתאריך:** {fault_obj.created_at}
+        """)
+        
+        # הצגת סטטוס
+        status_map = {'Open': '🟢 פתוח', 'InProgress': '🟡 בטיפול', 'Resolved': '✅ נפתר', 'Closed': '🔒 סגור'}
+        st.markdown(f"**סטטוס נוכחי:** {status_map.get(fault_obj.status, fault_obj.status)}")
+        
+        if fault_obj.assigned_technician:
+            st.info(f"👷 **טכנאי מוקצה:** {fault_obj.assigned_technician}")
+        
+        if fault_obj.description:
+            st.text_area("תיאור התקלה:", value=fault_obj.description, disabled=True, height=100)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✏️ עריכת פרטים", type="primary", use_container_width=True):
+                st.session_state.edit_mode = True
+                st.rerun()
+        with col2:
+            if st.button("סגור", use_container_width=True):
+                st.session_state.edit_mode = False
+                st.rerun()
+    
+    # מצב עריכה
+    else:
+        st.info("🔧 מצב עריכה - ערוך את הפרטים ולחץ 'שמור שינויים'")
+        
+        # בחירת סטטוס
+        status_options = ['Open', 'InProgress', 'Resolved', 'Closed']
+        status_labels = {'Open': '🟢 פתוח', 'InProgress': '🟡 בטיפול', 'Resolved': '✅ נפתר', 'Closed': '🔒 סגור'}
+        current_status_index = status_options.index(fault_obj.status) if fault_obj.status in status_options else 0
+        
+        new_status = st.selectbox(
+            "סטטוס",
+            options=status_options,
+            index=current_status_index,
+            format_func=lambda x: status_labels.get(x, x),
+            key=f"edit_status_{fault_id}"
+        )
+        
+        # שדה טכנאי - מוצג רק אם הסטטוס הוא בטיפול
+        technician_name = None
+        if new_status == 'InProgress':
+            technician_name = st.text_input(
+                "שם טכנאי",
+                value=fault_obj.assigned_technician or '',
+                key=f"edit_tech_{fault_id}"
+            )
+        
+        # עריכת תיאור
+        new_description = st.text_area(
+            "תיאור התקלה",
+            value=fault_obj.description or '',
+            height=150,
+            key=f"edit_desc_{fault_id}"
+        )
+        
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("💾 שמור שינויים", type="primary", use_container_width=True):
+                # עדכון התקלה
+                session = SqliteSession()
+                try:
+                    fault = session.query(Fault).filter(Fault.id == fault_id).first()
+                    if fault:
+                        # עדכון סטטוס
+                        if new_status == 'InProgress':
+                            fault.mark_as_in_progress(technician_name)
+                        elif new_status == 'Resolved':
+                            fault.mark_as_resolved()
+                        elif new_status == 'Closed':
+                            fault.mark_as_closed()
+                        elif new_status == 'Open':
+                            fault.reopen()
+                        
+                        # עדכון תיאור
+                        if new_description != fault.description:
+                            fault.update_description(new_description)
+                        
+                        session.commit()
+                        st.success("✅ התקלה עודכנה בהצלחה!")
+                        st.session_state.edit_mode = False
+                        st.rerun()
+                except Exception as e:
+                    session.rollback()
+                    st.error(f"❌ שגיאה בעדכון: {e}")
+                finally:
+                    session.close()
+        
+        with col2:
+            if st.button("ביטול", use_container_width=True):
+                st.session_state.edit_mode = False
+                st.rerun()
 
 # ============================================================================
 # CUSTOM CSS STYLING - Material Design Professional Theme
@@ -864,9 +1043,6 @@ def main():
                     ]
                 )
             
-            with col4:
-                is_urgent = st.checkbox("🚨 סמן כדחוף", value=False)
-            
             # ספרים תקועים
             books_stuck = st.checkbox("📚 יש ספרים תקועים בלוקר?", value=False, help="האם התלמיד צריך את הספרים בדחיפות?")
             
@@ -883,7 +1059,7 @@ def main():
                     locker_id=locker_id,
                     fault_type=fault_type,
                     books_stuck=books_stuck,
-                    is_urgent=is_urgent,
+                    is_urgent=False,
                     description=description if description.strip() else None
                 )
                 
@@ -933,9 +1109,9 @@ def main():
                 filtered_df = faults_with_info[faults_with_info['status'].isin(status_filter)]
                 
                 if urgent_filter == "דחופות בלבד":
-                    filtered_df = filtered_df[filtered_df['is_urgent'] == True]
+                    filtered_df = filtered_df[filtered_df['books_stuck'] == True]
                 elif urgent_filter == "לא דחופות":
-                    filtered_df = filtered_df[filtered_df['is_urgent'] == False]
+                    filtered_df = filtered_df[filtered_df['books_stuck'] == False]
                 
                 if fault_type_filter:
                     filtered_df = filtered_df[filtered_df['fault_type'].isin(fault_type_filter)]
@@ -943,7 +1119,7 @@ def main():
                 # Display statistics
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("סה\"כ תקלות", len(filtered_df))
-                col2.metric("דחופות", len(filtered_df[filtered_df['is_urgent'] == True]))
+                col2.metric("דחופות", len(filtered_df[(filtered_df['books_stuck'] == True) & (filtered_df['status'] == 'Open')]))
                 col3.metric("פתוחות", len(filtered_df[filtered_df['status'] == 'Open']))
                 col4.metric("נפתרו", len(filtered_df[filtered_df['status'] == 'Resolved']))
                 
@@ -952,7 +1128,7 @@ def main():
                 # Display faults table
                 display_df = filtered_df[[
                     'id', 'student_name', 'studentId', 'school_name',
-                    'fault_type', 'severity', 'books_stuck', 'is_urgent', 'status', 
+                    'fault_type', 'severity', 'books_stuck', 'status', 
                     'description', 'created_at'
                 ]].copy()
                 
@@ -962,14 +1138,17 @@ def main():
                 
                 display_df.columns = [
                     'מזהה', 'שם התלמיד', 'ת.ז תלמיד', 'בית ספר',
-                    'סוג תקלה', 'חומרה', 'ספרים תקועים', 'דחוף', 'סטטוס', 
+                    'סוג תקלה', 'חומרה', 'ספרים תקועים', 'סטטוס', 
                     'תיאור', 'נוצר בתאריך'
                 ]
                 
-                st.dataframe(
+                # טבלה אינטראקטיבית עם בחירת שורה
+                event = st.dataframe(
                     display_df,
                     use_container_width=True,
                     hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
                     column_config={
                         "חומרה": st.column_config.NumberColumn(
                             "חומרה",
@@ -977,68 +1156,21 @@ def main():
                             format="⭐ %d"
                         ),
                         "ספרים תקועים": st.column_config.CheckboxColumn("ספרים תקועים"),
-                        "דחוף": st.column_config.CheckboxColumn("דחוף"),
-                        "תאריך יצירה": st.column_config.DatetimeColumn(
-                            "תאריך יצירה",
+                        "נוצר בתאריך": st.column_config.DatetimeColumn(
+                            "נוצר בתאריך",
                             format="DD/MM/YYYY HH:mm"
                         )
                     }
                 )
                 
+                # אם נבחרה שורה - הצג dialog
+                if event.selection.rows:
+                    selected_row_index = event.selection.rows[0]
+                    selected_fault_id = int(filtered_df.iloc[selected_row_index]['id'])
+                    show_fault_details(selected_fault_id)
+                
                 st.divider()
-                
-                # ============ OBJECT-ORIENTED FAULT MANAGEMENT ============
-                st.subheader("🔧 ניהול תקלות (פעולות מונחה עצמים)")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write("**עדכון סטטוס תקלה**")
-                    fault_ids = filtered_df['id'].tolist()
-                    
-                    if fault_ids:
-                        selected_fault_id = st.selectbox(
-                            "בחר תקלה לעדכון",
-                            options=fault_ids,
-                            format_func=lambda x: f"תקלה #{x}"
-                        )
-                        
-                        new_status = st.selectbox(
-                            "סטטוס חדש",
-                            options=['Open', 'InProgress', 'Resolved', 'Closed'],
-                            format_func=lambda x: {'Open': 'פתוח', 'InProgress': 'בטיפול', 'Resolved': 'נפתר', 'Closed': 'סגור'}[x]
-                        )
-                        
-                        technician_name = None
-                        if new_status == 'InProgress':
-                            technician_name = st.text_input("שם טכנאי (אופציונלי)")
-                        
-                        if st.button("🔄 עדכן סטטוס", type="primary"):
-                            if update_fault_status(selected_fault_id, new_status, technician_name):
-                                st.success(f"✅ תקלה #{selected_fault_id} עודכנה ל-{new_status}!")
-                                st.rerun()
-                            else:
-                                st.error("שגיאה בעדכון התקלה")
-                
-                with col2:
-                    st.write("**מחיקת תקלה**")
-                    
-                    if fault_ids:
-                        delete_fault_id = st.selectbox(
-                            "בחר תקלה למחיקה",
-                            options=fault_ids,
-                            format_func=lambda x: f"תקלה #{x}",
-                            key="delete_selector"
-                        )
-                        
-                        st.warning("⚠️ לא ניתן לבטל פעולה זו!")
-                        
-                        if st.button("🗑️ מחק תקלה", type="secondary"):
-                            if delete_fault(delete_fault_id):
-                                st.success(f"✅ תקלה #{delete_fault_id} נמחקה!")
-                                st.rerun()
-                            else:
-                                st.error("שגיאה במחיקת התקלה")
+                st.info("💡 לחץ על שורה בטבלה למעלה כדי לצפות ולערוך את פרטי התקלה")
                 
                 st.divider()
                 
