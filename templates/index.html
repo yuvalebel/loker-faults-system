@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 מערכת ניהול תקלות לוקרים</title>
+    
+    <!-- Bootstrap 5 CSS (RTL) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Custom Styles -->
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #7c3aed;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --dark-bg: #1e293b;
+            --light-bg: #f8fafc;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .header-banner {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header-banner h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header-banner p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .nav-tabs {
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 2rem;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #64748b;
+            font-weight: 600;
+            border: none;
+            padding: 1rem 1.5rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            color: var(--primary-color);
+            background: #f1f5f9;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            background: transparent;
+            border: none;
+        }
+        
+        .nav-tabs .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            right: 0;
+            left: 0;
+            height: 3px;
+            background: var(--primary-color);
+            border-radius: 3px 3px 0 0;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            font-weight: bold;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .form-control, .form-select {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0.75rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .table {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .table thead {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .table tbody tr {
+            transition: background 0.2s;
+        }
+        
+        .table tbody tr:hover {
+            background: #f1f5f9;
+        }
+        
+        .badge {
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+        
+        .badge-open {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-resolved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge-closed {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .technician-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #3b82f6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .technician-card h5 {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .fault-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s;
+        }
+        
+        .fault-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+        }
+        
+        .urgent-flag {
+            background: linear-gradient(135deg, #fca5a5 0%, #ef4444 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        
+        .severity-star {
+            color: #fbbf24;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+        
+        select[multiple] {
+            min-height: 200px;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 2px solid #cbd5e1;
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .stats-label {
+            color: #64748b;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <!-- Header -->
+        <div class="header-banner">
+            <h1><i class="bi bi-tools"></i> מערכת ניהול תקלות לוקרים</h1>
+            <p>ממשק מקצועי לניהול ודיווח תקלות | Flask SPA Architecture</p>
+        </div>
+        
+        <!-- Main Container -->
+        <div class="main-container">
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="report-tab" data-bs-toggle="tab" 
+                            data-bs-target="#report" type="button" role="tab">
+                        <i class="bi bi-file-earmark-plus"></i> דיווח תקלה חדשה
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="manage-tab" data-bs-toggle="tab" 
+                            data-bs-target="#manage" type="button" role="tab">
+                        <i class="bi bi-list-check"></i> ניהול תקלות
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="schedule-tab" data-bs-toggle="tab" 
+                            data-bs-target="#schedule" type="button" role="tab">
+                        <i class="bi bi-calendar-check"></i> תזמון טכנאים
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- Tabs Content -->
+            <div class="tab-content" id="mainTabsContent">
+                <!-- TAB 1: Report Fault -->
+                <div class="tab-pane fade show active" id="report" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-file-earmark-plus"></i> דיווח תקלה חדשה
+                        </div>
+                        <div class="card-body">
+                            <form id="reportForm">
+                                <div class="row mb-3">
+                                    <div class="col-md-8">
+                                        <label for="studentSelect" class="form-label fw-bold">
+                                            <i class="bi bi-person"></i> בחר תלמיד
+                                        </label>
+                                        <select class="form-select" id="studentSelect" required>
+                                            <option value="">טוען תלמידים...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">מידע תלמיד</label>
+                                        <div id="studentInfo" class="alert alert-info" style="display: none;">
+                                            <div id="studentDetails"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="faultType" class="form-label fw-bold">
+                                            <i class="bi bi-exclamation-triangle"></i> סוג התקלה
+                                        </label>
+                                        <select class="form-select" id="faultType" required>
+                                            <option value="">בחר סוג תקלה...</option>
+                                            <option value="תקלה במנעול">תקלה במנעול</option>
+                                            <option value="נזק לדלת">נזק לדלת</option>
+                                            <option value="הקוד לא עובד">הקוד לא עובד</option>
+                                            <option value="ספרים תקועים">ספרים תקועים</option>
+                                            <option value="מפתח אבוד">מפתח אבוד</option>
+                                            <option value="אחר">אחר</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-bookmark-check"></i> סטטוס מיוחד
+                                        </label>
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="booksStuck">
+                                            <label class="form-check-label fw-bold text-danger" for="booksStuck">
+                                                📚 יש ספרים תקועים בלוקר (דחוף!)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="description" class="form-label fw-bold">
+                                        <i class="bi bi-chat-text"></i> תיאור התקלה (אופציונלי)
+                                    </label>
+                                    <textarea class="form-control" id="description" rows="3" 
+                                              placeholder="תאר את התקלה בפירוט..."></textarea>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary btn-lg w-100">
+                                    <i class="bi bi-send"></i> שלח דיווח תקלה
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TAB 2: Manage Faults -->
+                <div class="tab-pane fade" id="manage" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-list-check"></i> ניהול כל התקלות</span>
+                            <button class="btn btn-light btn-sm" onclick="loadFaults()">
+                                <i class="bi bi-arrow-clockwise"></i> רענן
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <!-- Filters -->
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">סינון לפי סטטוס</label>
+                                    <select class="form-select" id="statusFilter" onchange="filterFaults()">
+                                        <option value="all">הכל</option>
+                                        <option value="Open" selected>פתוחות</option>
+                                        <option value="Resolved">נפתרו</option>
+                                        <option value="Closed">סגורות</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">סינון לפי דחיפות</label>
+                                    <select class="form-select" id="urgentFilter" onchange="filterFaults()">
+                                        <option value="all">הכל</option>
+                                        <option value="yes">דחופות בלבד</option>
+                                        <option value="no">לא דחופות</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">חיפוש</label>
+                                    <input type="text" class="form-control" id="searchInput" 
+                                           placeholder="חפש לפי שם תלמיד או בית ספר..." 
+                                           onkeyup="filterFaults()">
+                                </div>
+                            </div>
+                            
+                            <!-- Statistics -->
+                            <div class="row mb-3" id="faultsStats">
+                                <!-- Will be populated by JS -->
+                            </div>
+                            
+                            <!-- Faults Table -->
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>מזהה</th>
+                                            <th>תלמיד</th>
+                                            <th>בית ספר</th>
+                                            <th>סוג תקלה</th>
+                                            <th>חומרה</th>
+                                            <th>דחיפות</th>
+                                            <th>סטטוס</th>
+                                            <th>תאריך</th>
+                                            <th>פעולות</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="faultsTableBody">
+                                        <tr>
+                                            <td colspan="9" class="text-center">
+                                                <div class="loading">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">טוען...</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TAB 3: Technician Schedule -->
+                <div class="tab-pane fade" id="schedule" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-calendar-check"></i> תזמון חכם לטכנאים
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label for="numTechnicians" class="form-label fw-bold">
+                                        <i class="bi bi-people"></i> מספר טכנאים זמינים
+                                    </label>
+                                    <input type="number" class="form-control" id="numTechnicians" 
+                                           min="1" max="10" value="3">
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end">
+                                    <button class="btn btn-primary btn-lg w-100" onclick="runScheduleAlgorithm()">
+                                        <i class="bi bi-lightning"></i> הרץ אלגוריתם תזמון
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <strong><i class="bi bi-info-circle"></i> אלגוריתם התזמון:</strong><br>
+                                ניקוד עדיפות לבית ספר = 0.35×N + 0.25×U + 0.25×T + 0.15×R<br>
+                                <small>
+                                    N = מספר תקלות פתוחות | 
+                                    U = תקלות דחופות (ספרים תקועים) | 
+                                    T = סך חומרת התקלות | 
+                                    R = תקלות שדווחו ב-24 שעות האחרונות
+                                </small>
+                            </div>
+                            
+                            <div id="scheduleResult">
+                                <!-- Results will be displayed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Fault Details Modal -->
+    <div class="modal fade" id="faultDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-info-circle"></i> פרטי תקלה</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="faultDetailsBody">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">סגור</button>
+                    <button type="button" class="btn btn-primary" id="saveFaultChanges" style="display:none;">שמור שינויים</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Main Application JavaScript -->
+    <script>
+        // ============================================================================
+        // GLOBAL STATE
+        // ============================================================================
+        let allStudents = [];
+        let allFaults = [];
+        let filteredFaults = [];
+        
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudents();
+            loadFaults();
+            
+            // Form submission
+            document.getElementById('reportForm').addEventListener('submit', handleReportSubmit);
+            
+            // Student selection change
+            document.getElementById('studentSelect').addEventListener('change', handleStudentSelect);
+        });
+        
+        // ============================================================================
+        // API CALLS
+        // ============================================================================
+        
+        async function loadStudents() {
+            try {
+                const response = await fetch('/api/students');
+                allStudents = await response.json();
+                
+                const select = document.getElementById('studentSelect');
+                select.innerHTML = '<option value="">בחר תלמיד...</option>';
+                
+                allStudents.forEach(student => {
+                    const option = document.createElement('option');
+                    option.value = student.id;
+                    option.textContent = student.display_name;
+                    option.dataset.student = JSON.stringify(student);
+                    select.appendChild(option);
+                });
+                
+                console.log(`✅ Loaded ${allStudents.length} students`);
+            } catch (error) {
+                console.error('Error loading students:', error);
+                alert('שגיאה בטעינת תלמידים');
+            }
+        }
+        
+        async function loadFaults() {
+            try {
+                const response = await fetch('/api/faults');
+                allFaults = await response.json();
+                filteredFaults = allFaults;
+                
+                displayFaults();
+                updateFaultsStats();
+                
+                console.log(`✅ Loaded ${allFaults.length} faults`);
+            } catch (error) {
+                console.error('Error loading faults:', error);
+                document.getElementById('faultsTableBody').innerHTML = 
+                    '<tr><td colspan="9" class="text-center text-danger">שגיאה בטעינת תקלות</td></tr>';
+            }
+        }
+        
+        async function handleReportSubmit(e) {
+            e.preventDefault();
+            
+            const studentId = document.getElementById('studentSelect').value;
+            const faultType = document.getElementById('faultType').value;
+            const booksStuck = document.getElementById('booksStuck').checked;
+            const description = document.getElementById('description').value;
+            
+            if (!studentId || !faultType) {
+                alert('אנא מלא את כל השדות הנדרשים');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/faults', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        student_id_ext: studentId,
+                        fault_type: faultType,
+                        books_stuck: booksStuck,
+                        description: description || null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ תקלה #${result.fault_id} נוצרה בהצלחה!`);
+                    document.getElementById('reportForm').reset();
+                    document.getElementById('studentInfo').style.display = 'none';
+                    loadFaults(); // Refresh faults list
+                } else {
+                    alert('❌ שגיאה: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error creating fault:', error);
+                alert('שגיאה ביצירת תקלה');
+            }
+        }
+        
+        async function updateFaultStatus(faultId, newStatus) {
+            try {
+                const response = await fetch('/api/update_status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fault_id: faultId,
+                        status: newStatus
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadFaults(); // Refresh
+                } else {
+                    alert('❌ שגיאה: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+                alert('שגיאה בעדכון סטטוס');
+            }
+        }
+        
+        async function runScheduleAlgorithm() {
+            const numTechnicians = document.getElementById('numTechnicians').value;
+            
+            if (!numTechnicians || numTechnicians < 1) {
+                alert('אנא הזן מספר טכנאים תקין');
+                return;
+            }
+            
+            try {
+                document.getElementById('scheduleResult').innerHTML = `
+                    <div class="loading">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">מריץ אלגוריתם תזמון...</p>
+                    </div>
+                `;
+                
+                const response = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        num_technicians: parseInt(numTechnicians)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayScheduleResults(result);
+                } else {
+                    document.getElementById('scheduleResult').innerHTML = 
+                        `<div class="alert alert-danger">שגיאה: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error running schedule:', error);
+                document.getElementById('scheduleResult').innerHTML = 
+                    '<div class="alert alert-danger">שגיאה בהרצת האלגוריתם</div>';
+            }
+        }
+        
+        // ============================================================================
+        // UI FUNCTIONS
+        // ============================================================================
+        
+        function handleStudentSelect(e) {
+            const selectedOption = e.target.selectedOptions[0];
+            
+            if (!selectedOption || !selectedOption.dataset.student) {
+                document.getElementById('studentInfo').style.display = 'none';
+                return;
+            }
+            
+            const student = JSON.parse(selectedOption.dataset.student);
+            
+            document.getElementById('studentDetails').innerHTML = `
+                <strong>שם:</strong> ${student.fname} ${student.lname}<br>
+                <strong>ת.ז:</strong> ${student.studentId}<br>
+                <strong>כיתה:</strong> ${student.class}'${student.classNumber}<br>
+                <strong>בית ספר:</strong> ${student.school_name || 'לא ידוע'}
+            `;
+            
+            document.getElementById('studentInfo').style.display = 'block';
+        }
+        
+        function displayFaults() {
+            const tbody = document.getElementById('faultsTableBody');
+            
+            if (filteredFaults.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">אין תקלות להצגה</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filteredFaults.map(fault => `
+                <tr>
+                    <td><strong>#${fault.id}</strong></td>
+                    <td>${fault.student_name || 'לא ידוע'}</td>
+                    <td>${fault.school_name || 'לא ידוע'}</td>
+                    <td>${fault.fault_type}</td>
+                    <td>
+                        ${'<span class="severity-star">★</span>'.repeat(fault.severity)}
+                    </td>
+                    <td>
+                        ${fault.books_stuck ? '<span class="urgent-flag">🔥 דחוף</span>' : '-'}
+                    </td>
+                    <td>
+                        <span class="badge badge-${fault.status.toLowerCase()}">
+                            ${getStatusLabel(fault.status)}
+                        </span>
+                    </td>
+                    <td>${new Date(fault.created_at).toLocaleDateString('he-IL')}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-primary" onclick="showFaultDetailsModal(${fault.id})" title="פרטים">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${fault.status === 'Open' ? 
+                                `<button class="btn btn-success" onclick="updateFaultStatus(${fault.id}, 'Resolved')" title="סמן כנפתר">
+                                    <i class="bi bi-check"></i>
+                                </button>` : ''}
+                            ${fault.status === 'Resolved' ? 
+                                `<button class="btn btn-secondary" onclick="updateFaultStatus(${fault.id}, 'Closed')" title="סגור">
+                                    <i class="bi bi-lock"></i>
+                                </button>` : ''}
+                            ${fault.status !== 'Open' ? 
+                                `<button class="btn btn-warning" onclick="updateFaultStatus(${fault.id}, 'Open')" title="פתח מחדש">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function filterFaults() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const urgentFilter = document.getElementById('urgentFilter').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredFaults = allFaults.filter(fault => {
+                // Status filter
+                if (statusFilter !== 'all' && fault.status !== statusFilter) {
+                    return false;
+                }
+                
+                // Urgent filter
+                if (urgentFilter === 'yes' && !fault.books_stuck) {
+                    return false;
+                }
+                if (urgentFilter === 'no' && fault.books_stuck) {
+                    return false;
+                }
+                
+                // Search filter
+                if (searchInput) {
+                    const studentName = (fault.student_name || '').toLowerCase();
+                    const schoolName = (fault.school_name || '').toLowerCase();
+                    if (!studentName.includes(searchInput) && !schoolName.includes(searchInput)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            displayFaults();
+            updateFaultsStats();
+        }
+        
+        function updateFaultsStats() {
+            const total = filteredFaults.length;
+            const urgent = filteredFaults.filter(f => f.books_stuck && f.status === 'Open').length;
+            const open = filteredFaults.filter(f => f.status === 'Open').length;
+            const resolved = filteredFaults.filter(f => f.status === 'Resolved').length;
+            
+            document.getElementById('faultsStats').innerHTML = `
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${total}</div>
+                        <div class="stats-label">סה"כ תקלות</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number text-danger">${urgent}</div>
+                        <div class="stats-label">דחופות</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number text-warning">${open}</div>
+                        <div class="stats-label">פתוחות</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number text-success">${resolved}</div>
+                        <div class="stats-label">נפתרו</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function displayScheduleResults(result) {
+            if (result.message) {
+                document.getElementById('scheduleResult').innerHTML = `
+                    <div class="alert alert-info">${result.message}</div>
+                `;
+                return;
+            }
+            
+            const assignments = result.assignments || [];
+            
+            let html = `
+                <div class="alert alert-success mb-4">
+                    <strong><i class="bi bi-check-circle"></i> אלגוריתם הסתיים בהצלחה!</strong><br>
+                    חולק ${assignments.reduce((sum, a) => sum + a.total_faults, 0)} תקלות ל-${result.num_technicians} טכנאים
+                </div>
+                <div class="row">
+            `;
+            
+            assignments.forEach(tech => {
+                const schools = tech.schools || [];
+                const schoolsSummary = schools.map(s => `${s.school_name} (ציון: ${s.priority_score.toFixed(1)})`).join(', ');
+                
+                html += `
+                    <div class="col-md-4">
+                        <div class="technician-card">
+                            <h5><i class="bi bi-person-badge"></i> טכנאי #${tech.technician_id}</h5>
+                            <p class="mb-2">
+                                <strong>בתי ספר:</strong> ${schools.length}<br>
+                                <strong>תקלות:</strong> ${tech.total_faults}<br>
+                                <strong>ציון כולל:</strong> ${tech.total_score.toFixed(2)}
+                            </p>
+                            <hr>
+                            <h6>בתי ספר שהוקצו:</h6>
+                            <div class="mb-2">
+                `;
+                
+                schools.forEach(school => {
+                    const schoolFaults = tech.faults.filter(f => f.school_name === school.school_name);
+                    html += `
+                        <div class="alert alert-light mb-2">
+                            <strong><i class="bi bi-building"></i> ${school.school_name}</strong><br>
+                            <small>אזור: ${school.region} | ציון: ${school.priority_score.toFixed(2)} | תקלות: ${school.num_faults}</small>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                            </div>
+                            <hr>
+                            <h6>רשימת תקלות:</h6>
+                            <div class="fault-list" style="max-height: 400px; overflow-y: auto;">
+                `;
+                
+                tech.faults.forEach(fault => {
+                    html += `
+                        <div class="fault-item">
+                            <strong>${fault.student_name}</strong><br>
+                            <small>
+                                <i class="bi bi-building"></i> ${fault.school_name} (${fault.region})<br>
+                                <i class="bi bi-exclamation-circle"></i> ${fault.fault_type}
+                            </small>
+                            ${fault.books_stuck ? '<br><span class="urgent-flag">🔥 דחוף</span>' : ''}
+                        </div>
+                    `;
+                });
+                
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            document.getElementById('scheduleResult').innerHTML = html;
+        }
+        
+        async function showFaultDetailsModal(faultId) {
+            const fault = allFaults.find(f => f.id === faultId);
+            if (!fault) {
+                alert('תקלה לא נמצאה');
+                return;
+            }
+            
+            const modalBody = document.getElementById('faultDetailsBody');
+            
+            modalBody.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-person"></i> מידע תלמיד</h6>
+                        <table class="table table-sm">
+                            <tr><th>שם:</th><td>${fault.student_name || 'לא ידוע'}</td></tr>
+                            <tr><th>ת.ז:</th><td>${fault.studentId || 'לא ידוע'}</td></tr>
+                            <tr><th>בית ספר:</th><td>${fault.school_name || 'לא ידוע'}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-info-circle"></i> פרטי תקלה</h6>
+                        <table class="table table-sm">
+                            <tr><th>מזהה:</th><td>#${fault.id}</td></tr>
+                            <tr><th>סוג:</th><td>${fault.fault_type}</td></tr>
+                            <tr><th>חומרה:</th><td>${'⭐'.repeat(fault.severity)}</td></tr>
+                            <tr><th>דחיפות:</th><td>${fault.books_stuck ? '<span class="urgent-flag">🔥 דחוף</span>' : 'רגיל'}</td></tr>
+                            <tr><th>תאריך:</th><td>${new Date(fault.created_at).toLocaleString('he-IL')}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold"><i class="bi bi-gear"></i> סטטוס</label>
+                    <select class="form-select" id="modalFaultStatus">
+                        <option value="Open" ${fault.status === 'Open' ? 'selected' : ''}>פתוחה</option>
+                        <option value="Resolved" ${fault.status === 'Resolved' ? 'selected' : ''}>נפתרה</option>
+                        <option value="Closed" ${fault.status === 'Closed' ? 'selected' : ''}>סגורה</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold"><i class="bi bi-person-badge"></i> טכנאי מוקצה</label>
+                    <input type="text" class="form-control" id="modalTechnician" 
+                           value="${fault.assigned_technician || ''}" placeholder="שם טכנאי (אופציונלי)">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold"><i class="bi bi-chat-text"></i> תיאור</label>
+                    <textarea class="form-control" id="modalDescription" rows="3" readonly>${fault.description || 'אין תיאור'}</textarea>
+                </div>
+                
+                ${fault.resolved_at ? `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>נפתר בתאריך:</strong> ${new Date(fault.resolved_at).toLocaleString('he-IL')}
+                </div>
+                ` : ''}
+            `;
+            
+            // Show save button
+            document.getElementById('saveFaultChanges').style.display = 'inline-block';
+            document.getElementById('saveFaultChanges').onclick = () => saveFaultDetails(faultId);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('faultDetailsModal'));
+            modal.show();
+        }
+        
+        async function saveFaultDetails(faultId) {
+            const newStatus = document.getElementById('modalFaultStatus').value;
+            const technician = document.getElementById('modalTechnician').value;
+            
+            try {
+                const response = await fetch('/api/update_status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fault_id: faultId,
+                        status: newStatus,
+                        technician: technician || null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ השינויים נשמרו בהצלחה!');
+                    
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('faultDetailsModal'));
+                    modal.hide();
+                    
+                    // Refresh faults
+                    loadFaults();
+                } else {
+                    alert('❌ שגיאה: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving fault details:', error);
+                alert('שגיאה בשמירת השינויים');
+            }
+        }
+        
+        function getStatusLabel(status) {
+            const labels = {
+                'Open': 'פתוחה',
+                'Resolved': 'נפתרה',
+                'Closed': 'סגורה'
+            };
+            return labels[status] || status;
+        }
+    </script>
+</body>
+</html>
