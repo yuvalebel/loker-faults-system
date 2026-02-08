@@ -128,7 +128,6 @@ def get_school_region(school_name):
 
 SEVERITY_MAP = {
     "תקלה במנעול": 5,
-    "ספרים תקועים": 4,
     "הקוד לא עובד": 4,
     "נזק לדלת": 3,
     "מפתח אבוד": 2,
@@ -153,6 +152,7 @@ class Fault(Base):
     severity = Column(Integer, nullable=False)
     books_stuck = Column(Boolean, default=False)
     is_urgent = Column(Boolean, default=False)
+    is_recurring = Column(Boolean, default=False)
     status = Column(String, default='Open')
     description = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -208,6 +208,7 @@ def get_faults():
                 'severity': fault.severity,
                 'books_stuck': fault.books_stuck,
                 'is_urgent': fault.is_urgent,
+                'is_recurring': getattr(fault, 'is_recurring', False),  # Safe access for old DB records
                 'status': fault.status,
                 'description': fault.description,
                 'created_at': fault.created_at.isoformat() if fault.created_at else None,
@@ -236,13 +237,27 @@ def get_faults():
 
 @app.route('/api/faults', methods=['POST'])
 def create_fault():
-    """Create a new fault in SQLite"""
+    """Create a new fault in SQLite with automatic recurring detection"""
     data = request.get_json()
     
     session = SqliteSession()
     try:
         severity = get_severity(data['fault_type'])
         is_urgent = data.get('books_stuck', False)
+        
+        # ========================================================================
+        # AUTO-DETECT RECURRING FAULT
+        # Check if this student had the same fault type before (Resolved/Closed)
+        # ========================================================================
+        is_recurring = False
+        previous_faults = session.query(Fault).filter(
+            Fault.student_id_ext == data['student_id_ext'],
+            Fault.fault_type == data['fault_type'],
+            Fault.status.in_(['Resolved', 'Closed'])
+        ).first()
+        
+        if previous_faults:
+            is_recurring = True
         
         new_fault = Fault(
             student_id_ext=data['student_id_ext'],
@@ -251,6 +266,7 @@ def create_fault():
             severity=severity,
             books_stuck=data.get('books_stuck', False),
             is_urgent=is_urgent,
+            is_recurring=is_recurring,  # Automatically detected
             status='Open',
             description=data.get('description')
         )
@@ -262,7 +278,8 @@ def create_fault():
         return jsonify({
             'success': True,
             'fault_id': new_fault.id,
-            'message': 'תקלה נוצרה בהצלחה'
+            'is_recurring': is_recurring,
+            'message': f'תקלה נוצרה בהצלחה{" (זוהתה כתקלה חוזרת)" if is_recurring else ""}'
         })
     except Exception as e:
         session.rollback()
@@ -303,19 +320,163 @@ def update_status():
     finally:
         session.close()
 
+# ============================================================================
+# SCHEDULING ALGORITHM - 2-STAGE HYBRID MODEL
+# ============================================================================
+
+def run_scheduling_algorithm(faults_df, num_technicians):
+    """
+    2-Stage Hybrid Scheduling Algorithm
+    
+    Stage 1: Mathematical Priority Scoring
+    Formula: Score = 0.35*N + 0.25*U + 0.25*T + 0.15*R
+    
+    Variables:
+    - N (Efficiency - 35%): Count of open faults (normalized 1-5+)
+    - U (Severity - 25%): Average severity score (1-5 scale)
+    - T (Fairness - 25%): Age of oldest fault in days (normalized 1-5+)
+    - R (Recurring - 15%): 5 if is_recurring=True, else 1
+    
+    CRITICAL OVERRIDE: If any fault has is_urgent=True -> Score = 10000
+    
+    Stage 2: Regional Anchor & Cluster Assignment
+    - Sort all schools by Score (descending)
+    - For each technician:
+        - Find highest priority unassigned school (Anchor)
+        - Assign ALL schools from that same region to this technician
+        - Move to next technician with next highest unassigned school
+    - Each technician works in ONE region only (minimizes travel)
+    - If region has too many faults, split between technicians
+    
+    Args:
+        faults_df: DataFrame with fault data including school_name, region, severity, 
+                   is_urgent, is_recurring, created_at
+        num_technicians: Number of available technicians
+    
+    Returns:
+        Dictionary mapping technician names to lists of assigned schools with details
+    """
+    
+    if faults_df.empty:
+        return {}
+    
+    # ========================================================================
+    # STAGE 1: CALCULATE PRIORITY SCORES FOR EACH SCHOOL
+    # ========================================================================
+    
+    now = datetime.utcnow()
+    
+    # Calculate age of each fault in days
+    faults_df['age_days'] = faults_df['created_at'].apply(
+        lambda x: (now - x).total_seconds() / 86400 if x else 0
+    )
+    
+    # Group by school and calculate metrics
+    school_metrics = faults_df.groupby('school_name').agg({
+        'fault_id': 'count',           # N: Count of faults
+        'severity': 'mean',             # U: Average severity
+        'age_days': 'max',              # T: Oldest fault age
+        'is_recurring': 'max',          # R: Any recurring fault?
+        'is_urgent': 'max',             # Override check
+        'region': 'first'               # Region mapping
+    }).reset_index()
+    
+    school_metrics.columns = ['school_name', 'fault_count', 'avg_severity', 
+                              'max_age_days', 'has_recurring', 'has_urgent', 'region']
+    
+    # ========================================================================
+    # APPLY THE SCORING FORMULA WITH NORMALIZATION
+    # ========================================================================
+    
+    # N: Normalize fault count (1-5+)
+    school_metrics['N'] = school_metrics['fault_count'].apply(lambda x: min(x, 5))
+    
+    # U: Average severity is already 1-5 scale
+    school_metrics['U'] = school_metrics['avg_severity']
+    
+    # T: Normalize age in days (1-5+)
+    school_metrics['T'] = school_metrics['max_age_days'].apply(lambda x: min(max(x, 1), 5))
+    
+    # R: Recurring flag (5 if True, 1 if False)
+    school_metrics['R'] = school_metrics['has_recurring'].apply(lambda x: 5 if x else 1)
+    
+    # Calculate base score using the formula
+    school_metrics['priority_score'] = (
+        0.35 * school_metrics['N'] +
+        0.25 * school_metrics['U'] +
+        0.25 * school_metrics['T'] +
+        0.15 * school_metrics['R']
+    )
+    
+    # CRITICAL OVERRIDE: Urgent faults get MAXIMUM priority (books_stuck = True)
+    school_metrics.loc[school_metrics['has_urgent'] == True, 'priority_score'] = 10000
+    
+    # ========================================================================
+    # STAGE 2: ANCHOR & CLUSTER ASSIGNMENT
+    # ========================================================================
+    
+    # Sort schools by priority score (highest first)
+    school_metrics = school_metrics.sort_values('priority_score', ascending=False).reset_index(drop=True)
+    
+    # Track which schools have been assigned
+    school_metrics['assigned'] = False
+    
+    # Initialize technician assignments
+    assignments = {}
+    for i in range(1, num_technicians + 1):
+        assignments[f'Technician {i}'] = []
+    
+    # Assign schools using Regional Anchor & Cluster strategy
+    tech_index = 0
+    
+    while school_metrics[~school_metrics['assigned']].shape[0] > 0:
+        # Get current technician
+        current_tech = f'Technician {tech_index + 1}'
+        
+        # Find the highest priority unassigned school (ANCHOR)
+        unassigned_schools = school_metrics[~school_metrics['assigned']]
+        
+        if unassigned_schools.empty:
+            break
+        
+        # Get the top priority school and its region
+        anchor_school = unassigned_schools.iloc[0]
+        anchor_region = anchor_school['region']
+        
+        # Get ALL unassigned schools from the same region as the anchor
+        region_schools = school_metrics[
+            (school_metrics['region'] == anchor_region) & 
+            (~school_metrics['assigned'])
+        ]
+        
+        # Assign all schools in this region to the current technician
+        for _, school in region_schools.iterrows():
+            # Get all faults for this school
+            school_faults = faults_df[faults_df['school_name'] == school['school_name']]
+            
+            assignments[current_tech].append({
+                'school_name': school['school_name'],
+                'region': school['region'],
+                'priority_score': float(school['priority_score']),
+                'num_faults': int(school['fault_count']),
+                'is_urgent': bool(school['has_urgent']),
+                'avg_severity': float(school['avg_severity']),
+                'oldest_fault_days': float(school['max_age_days']),
+                'faults': school_faults.to_dict(orient='records')
+            })
+            
+            # Mark school as assigned
+            school_metrics.loc[school_metrics['school_name'] == school['school_name'], 'assigned'] = True
+        
+        # Move to next technician (round-robin)
+        tech_index = (tech_index + 1) % num_technicians
+    
+    return assignments
+
 @app.route('/api/schedule', methods=['POST'])
 def schedule_technicians():
     """
-    Smart scheduling algorithm
-    Formula: Priority Score = 0.35*N + 0.25*U + 0.25*T + 0.15*R (PER SCHOOL)
-    Where:
-    - N = Number of open faults in school
-    - U = Number of urgent faults (books stuck)
-    - T = Total severity score
-    - R = Number of recently reported faults (last 24 hours)
-    
-    If is_urgent -> Priority = 1000 (override)
-    Schools are distributed evenly across technicians using load balancing.
+    Smart scheduling endpoint using 2-Stage Hybrid Algorithm
     """
     data = request.get_json()
     num_technicians = data.get('num_technicians', 1)
@@ -358,77 +519,36 @@ def schedule_technicians():
                 'severity': fault.severity,
                 'is_urgent': fault.is_urgent,
                 'books_stuck': fault.books_stuck,
+                'is_recurring': getattr(fault, 'is_recurring', False),  # Safe access
                 'created_at': fault.created_at
             })
         
-        # Group by school and calculate priority scores
+        # Create DataFrame for algorithm
         df = pd.DataFrame(faults_data)
         
-        # Calculate recent faults (last 24 hours)
-        now = datetime.utcnow()
-        df['is_recent'] = df['created_at'].apply(
-            lambda x: 1 if (now - x).total_seconds() < 86400 else 0
-        )
+        # Run the scheduling algorithm
+        tech_assignments = run_scheduling_algorithm(df, num_technicians)
         
-        school_scores = df.groupby('school_name').agg({
-            'fault_id': 'count',  # N - number of faults
-            'books_stuck': 'sum',  # U - urgent faults
-            'severity': 'sum',     # T - total severity
-            'is_recent': 'sum',    # R - recent faults
-            'region': 'first',
-            'is_urgent': 'max'     # Check if any urgent
-        }).reset_index()
-        
-        school_scores.columns = ['school_name', 'N', 'U', 'T', 'R', 'region', 'has_urgent']
-        
-        # Calculate priority score FOR EACH SCHOOL
-        # Formula: 0.35*N + 0.25*U + 0.25*T + 0.15*R
-        school_scores['priority_score'] = (
-            0.35 * school_scores['N'] +
-            0.25 * school_scores['U'] +
-            0.25 * school_scores['T'] +
-            0.15 * school_scores['R']
-        )
-        
-        # Override to 1000 if urgent
-        school_scores.loc[school_scores['has_urgent'] == True, 'priority_score'] = 1000
-        
-        # Sort schools by priority (highest first)
-        school_scores = school_scores.sort_values('priority_score', ascending=False)
-        
-        # Initialize technicians
-        technicians = [{'id': i+1, 'score': 0, 'schools': [], 'faults': []} 
-                      for i in range(num_technicians)]
-        
-        # Distribute schools to technicians using load balancing
-        # Each school goes to the technician with the lowest current score
-        for _, school_row in school_scores.iterrows():
-            # Find technician with minimum workload
-            tech_idx = min(range(num_technicians), 
-                          key=lambda i: technicians[i]['score'])
-            
-            # Get all faults for this school
-            school_faults = df[df['school_name'] == school_row['school_name']].to_dict(orient='records')
-            
-            # Assign school to this technician
-            technicians[tech_idx]['score'] += school_row['priority_score']
-            technicians[tech_idx]['schools'].append({
-                'school_name': school_row['school_name'],
-                'region': school_row['region'],
-                'priority_score': school_row['priority_score'],
-                'num_faults': school_row['N']
-            })
-            technicians[tech_idx]['faults'].extend(school_faults)
-        
-        # Format assignments
+        # Format output for frontend
         assignments = []
-        for tech in technicians:
+        for tech_name, schools in tech_assignments.items():
+            tech_id = int(tech_name.split()[-1])
+            
+            # Calculate total metrics for this technician
+            total_score = sum(s['priority_score'] for s in schools)
+            total_faults = sum(s['num_faults'] for s in schools)
+            
+            # Flatten all faults for this technician
+            all_faults = []
+            for school in schools:
+                all_faults.extend(school['faults'])
+            
             assignments.append({
-                'technician_id': tech['id'],
-                'schools': tech['schools'],
-                'total_score': tech['score'],
-                'total_faults': len(tech['faults']),
-                'faults': tech['faults']
+                'technician_id': tech_id,
+                'schools': schools,
+                'total_score': total_score,
+                'total_faults': total_faults,
+                'faults': all_faults
             })
         
         return jsonify({

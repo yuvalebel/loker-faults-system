@@ -356,7 +356,6 @@
                                             <option value="תקלה במנעול">תקלה במנעול</option>
                                             <option value="נזק לדלת">נזק לדלת</option>
                                             <option value="הקוד לא עובד">הקוד לא עובד</option>
-                                            <option value="ספרים תקועים">ספרים תקועים</option>
                                             <option value="מפתח אבוד">מפתח אבוד</option>
                                             <option value="אחר">אחר</option>
                                         </select>
@@ -368,8 +367,11 @@
                                         <div class="form-check mt-2">
                                             <input class="form-check-input" type="checkbox" id="booksStuck">
                                             <label class="form-check-label fw-bold text-danger" for="booksStuck">
-                                                📚 יש ספרים תקועים בלוקר (דחוף!)
+                                                📚 ספרים נעולים בלוקר
                                             </label>
+                                        </div>
+                                        <div class="alert alert-info mt-2 mb-0" style="font-size: 0.875rem;">
+                                            <i class="bi bi-info-circle"></i> <strong>זיהוי אוטומטי:</strong> המערכת תסווג תקלה כ"חוזרת" אם לתלמיד הייתה תקלה מאותו סוג בעבר.
                                         </div>
                                     </div>
                                 </div>
@@ -488,15 +490,17 @@
                             </div>
                             
                             <div class="alert alert-info">
-                                <strong><i class="bi bi-info-circle"></i> אלגוריתם התזמון:</strong><br>
-                                ניקוד עדיפות לבית ספר = 0.35×N + 0.25×U + 0.25×T + 0.15×R<br>
-                                <small>
-                                    N = מספר תקלות פתוחות | 
-                                    U = תקלות דחופות (ספרים תקועים) | 
-                                    T = סך חומרת התקלות | 
-                                    R = תקלות שדווחו ב-24 שעות האחרונות
-                                </small>
-                            </div>
+                <strong><i class="bi bi-info-circle"></i> אלגוריתם התזמון - 2-Stage Hybrid Model:</strong><br>
+                <strong>Stage 1:</strong> ניקוד עדיפות = 0.35×N + 0.25×U + 0.25×T + 0.15×R<br>
+                <small>
+                    N = מספר תקלות (נורמל 1-5) | 
+                    U = ממוצע חומרה (1-5) | 
+                    T = גיל תקלה ישנה בימים (נורמל 1-5) | 
+                    R = תקלה חוזרת (5=כן, 1=לא)<br>
+                    <strong>Override:</strong> תקלה דחופה → ציון 1000
+                </small><br>
+                <strong>Stage 2:</strong> Anchor & Cluster - הקצאה גיאוגרפית חכמה<br>
+                <small>טכנאי מקבל את בית הספר הדחוף ביותר + כל בתי הספר מאותו אזור (צמצום נסיעות)</small>
                             
                             <div id="scheduleResult">
                                 <!-- Results will be displayed here -->
@@ -629,7 +633,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ תקלה #${result.fault_id} נוצרה בהצלחה!`);
+                    let message = `✅ ${result.message}`;
+                    if (result.is_recurring) {
+                        message += '\n\n🔄 שים לב: זוהתה כתקלה חוזרת - תלמיד זה כבר דיווח על תקלה מסוג זה בעבר.';
+                    }
+                    alert(message);
                     document.getElementById('reportForm').reset();
                     document.getElementById('studentInfo').style.display = 'none';
                     loadFaults(); // Refresh faults list
@@ -746,12 +754,15 @@
                     <td><strong>#${fault.id}</strong></td>
                     <td>${fault.student_name || 'לא ידוע'}</td>
                     <td>${fault.school_name || 'לא ידוע'}</td>
-                    <td>${fault.fault_type}</td>
+                    <td>
+                        ${fault.fault_type}
+                        ${fault.is_recurring ? '<span class="badge bg-warning" style="cursor: help;" title="תלמיד זה כבר דיווח על תקלה מסוג זה בעבר">🔄 חוזרת</span>' : ''}
+                    </td>
                     <td>
                         ${'<span class="severity-star">★</span>'.repeat(fault.severity)}
                     </td>
                     <td>
-                        ${fault.books_stuck ? '<span class="urgent-flag">🔥 דחוף</span>' : '-'}
+                        ${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">� ספרים נעולים</span>' : '-'}
                     </td>
                     <td>
                         <span class="badge badge-${fault.status.toLowerCase()}">
@@ -794,10 +805,10 @@
                 }
                 
                 // Urgent filter
-                if (urgentFilter === 'yes' && !fault.books_stuck) {
+                if (urgentFilter === 'yes' && !(fault.books_stuck || fault.is_urgent)) {
                     return false;
                 }
-                if (urgentFilter === 'no' && fault.books_stuck) {
+                if (urgentFilter === 'no' && (fault.books_stuck || fault.is_urgent)) {
                     return false;
                 }
                 
@@ -819,7 +830,7 @@
         
         function updateFaultsStats() {
             const total = filteredFaults.length;
-            const urgent = filteredFaults.filter(f => f.books_stuck && f.status === 'Open').length;
+            const urgent = filteredFaults.filter(f => (f.books_stuck || f.is_urgent) && f.status === 'Open').length;
             const open = filteredFaults.filter(f => f.status === 'Open').length;
             const resolved = filteredFaults.filter(f => f.status === 'Resolved').length;
             
@@ -833,7 +844,7 @@
                 <div class="col-md-3">
                     <div class="stats-card text-center">
                         <div class="stats-number text-danger">${urgent}</div>
-                        <div class="stats-label">דחופות</div>
+                        <div class="stats-label">📚 ספרים נעולים</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -871,7 +882,6 @@
             
             assignments.forEach(tech => {
                 const schools = tech.schools || [];
-                const schoolsSummary = schools.map(s => `${s.school_name} (ציון: ${s.priority_score.toFixed(1)})`).join(', ');
                 
                 html += `
                     <div class="col-md-4">
@@ -883,16 +893,25 @@
                                 <strong>ציון כולל:</strong> ${tech.total_score.toFixed(2)}
                             </p>
                             <hr>
-                            <h6>בתי ספר שהוקצו:</h6>
+                            <h6>בתי ספר שהוקצו (לפי עדיפות):</h6>
                             <div class="mb-2">
                 `;
                 
                 schools.forEach(school => {
-                    const schoolFaults = tech.faults.filter(f => f.school_name === school.school_name);
+                    const urgentBadge = school.is_urgent ? '<span class="badge bg-danger">� ספרים נעולים</span>' : '';
+                    const scoreColor = school.priority_score >= 1000 ? 'text-danger' : 
+                                      school.priority_score >= 5 ? 'text-warning' : 'text-primary';
+                    
                     html += `
-                        <div class="alert alert-light mb-2">
-                            <strong><i class="bi bi-building"></i> ${school.school_name}</strong><br>
-                            <small>אזור: ${school.region} | ציון: ${school.priority_score.toFixed(2)} | תקלות: ${school.num_faults}</small>
+                        <div class="alert ${school.is_urgent ? 'alert-danger' : 'alert-light'} mb-2">
+                            <strong><i class="bi bi-building"></i> ${school.school_name}</strong> ${urgentBadge}<br>
+                            <small>
+                                <i class="bi bi-geo-alt"></i> <strong>אזור:</strong> ${school.region}<br>
+                                <i class="bi bi-star-fill ${scoreColor}"></i> <strong>ציון:</strong> <span class="${scoreColor}">${school.priority_score.toFixed(2)}</span><br>
+                                <i class="bi bi-list-ol"></i> <strong>תקלות:</strong> ${school.num_faults}<br>
+                                <i class="bi bi-speedometer"></i> <strong>ממוצע חומרה:</strong> ${school.avg_severity ? school.avg_severity.toFixed(1) : 'N/A'}/5<br>
+                                <i class="bi bi-calendar-event"></i> <strong>תקלה ישנה:</strong> ${school.oldest_fault_days ? Math.floor(school.oldest_fault_days) : '0'} ימים
+                            </small>
                         </div>
                     `;
                 });
@@ -900,7 +919,7 @@
                 html += `
                             </div>
                             <hr>
-                            <h6>רשימת תקלות:</h6>
+                            <h6>רשימת תקלות מלאה:</h6>
                             <div class="fault-list" style="max-height: 400px; overflow-y: auto;">
                 `;
                 
@@ -912,7 +931,7 @@
                                 <i class="bi bi-building"></i> ${fault.school_name} (${fault.region})<br>
                                 <i class="bi bi-exclamation-circle"></i> ${fault.fault_type}
                             </small>
-                            ${fault.books_stuck ? '<br><span class="urgent-flag">🔥 דחוף</span>' : ''}
+                            ${(fault.books_stuck || fault.is_urgent) ? '<br><span class="urgent-flag">� ספרים נעולים</span>' : ''}
                         </div>
                     `;
                 });
@@ -954,13 +973,21 @@
                             <tr><th>מזהה:</th><td>#${fault.id}</td></tr>
                             <tr><th>סוג:</th><td>${fault.fault_type}</td></tr>
                             <tr><th>חומרה:</th><td>${'⭐'.repeat(fault.severity)}</td></tr>
-                            <tr><th>דחיפות:</th><td>${fault.books_stuck ? '<span class="urgent-flag">🔥 דחוף</span>' : 'רגיל'}</td></tr>
+                            <tr><th>דחיפות:</th><td>${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">� ספרים נעולים</span>' : 'רגיל'}</td></tr>
+                            <tr><th>חוזרת:</th><td>${fault.is_recurring ? '<span class="badge bg-warning">🔄 כן</span>' : 'לא'}</td></tr>
                             <tr><th>תאריך:</th><td>${new Date(fault.created_at).toLocaleString('he-IL')}</td></tr>
                         </table>
                     </div>
                 </div>
                 
                 <hr>
+                
+                ${fault.is_recurring ? `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>תקלה חוזרת מזוהה:</strong><br>
+                    תלמיד זה כבר דיווח בעבר על תקלה מסוג "${fault.fault_type}". ייתכן שמדובר בבעיה מתמשכת הדורשת תשומת לב מיוחדת.
+                </div>
+                ` : ''}
                 
                 <div class="mb-3">
                     <label class="form-label fw-bold"><i class="bi bi-gear"></i> סטטוס</label>
