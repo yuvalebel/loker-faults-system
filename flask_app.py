@@ -192,6 +192,7 @@ class Fault(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
     assigned_technician = Column(String, nullable=True)
+    technician_notes = Column(String, nullable=True)
 
 # Create tables
 Base.metadata.create_all(sqlite_engine)
@@ -247,7 +248,8 @@ def get_faults():
                 'description': fault.description,
                 'created_at': fault.created_at.isoformat() if fault.created_at else None,
                 'resolved_at': fault.resolved_at.isoformat() if fault.resolved_at else None,
-                'assigned_technician': fault.assigned_technician
+                'assigned_technician': fault.assigned_technician,
+                'technician_notes': getattr(fault, 'technician_notes', None)  # Safe access for new column
             }
             
             # Get student info from cache
@@ -354,6 +356,58 @@ def update_status():
         session.commit()
         
         return jsonify({'success': True, 'message': 'סטטוס עודכן בהצלחה'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+@app.route('/api/faults/update', methods=['POST'])
+def update_fault_with_notes():
+    """
+    Update fault with technician notes and status change
+    Expected JSON: {fault_id, status, technician_notes}
+    """
+    data = request.get_json()
+    
+    session = SqliteSession()
+    try:
+        fault = session.query(Fault).filter(Fault.id == data['fault_id']).first()
+        
+        if not fault:
+            return jsonify({'success': False, 'error': 'Fault not found'}), 404
+        
+        # Update status if provided
+        if 'status' in data:
+            new_status = data['status']
+            fault.status = new_status
+            
+            if new_status in ['Resolved', 'Closed']:
+                if not fault.resolved_at:
+                    fault.resolved_at = datetime.utcnow()
+            elif new_status == 'Open':
+                fault.resolved_at = None
+        
+        # Update technician notes if provided
+        if 'technician_notes' in data:
+            fault.technician_notes = data['technician_notes']
+        
+        # Update assigned technician if provided
+        if 'technician' in data:
+            fault.assigned_technician = data['technician']
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'התקלה עודכנה בהצלחה',
+            'fault': {
+                'id': fault.id,
+                'status': fault.status,
+                'technician_notes': fault.technician_notes,
+                'resolved_at': fault.resolved_at.isoformat() if fault.resolved_at else None
+            }
+        })
     except Exception as e:
         session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

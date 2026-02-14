@@ -66,50 +66,251 @@
         .main-container {
             background: white;
             border-radius: 15px;
-            padding: 2rem;
+            padding: 0;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: row;
+            min-height: 600px;
         }
         
         .nav-tabs {
-            border-bottom: 2px solid #e2e8f0;
-            margin-bottom: 2rem;
+            border-left: 2px solid #e2e8f0;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+            padding: 2rem 1rem;
+            border-radius: 15px 0 0 15px;
+            display: flex;
+            flex-direction: column;
+            width: 280px;
+            gap: 0.5rem;
             position: sticky;
             top: 0;
-            background: white;
-            z-index: 1000;
-            padding-top: 0.5rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            align-self: flex-start;
+        }
+        
+        .nav-tabs .nav-item {
+            width: 100%;
         }
         
         .nav-tabs .nav-link {
             color: #64748b;
             font-weight: 600;
             border: none;
-            padding: 1rem 1.5rem;
+            padding: 1.25rem 1.5rem;
             position: relative;
             transition: all 0.3s ease;
+            border-radius: 10px;
+            text-align: right;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.05rem;
+        }
+        
+        .nav-tabs .nav-link i {
+            font-size: 1.3rem;
         }
         
         .nav-tabs .nav-link:hover {
             color: var(--primary-color);
-            background: #f1f5f9;
+            background: white;
+            transform: translateX(-5px);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
         }
         
         .nav-tabs .nav-link.active {
-            color: var(--primary-color);
-            background: transparent;
+            color: white;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             border: none;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
         }
         
-        .nav-tabs .nav-link.active::after {
+        .nav-tabs .nav-link.active::before {
             content: '';
             position: absolute;
-            bottom: -2px;
-            right: 0;
-            left: 0;
-            height: 3px;
+            right: -1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 70%;
             background: var(--primary-color);
-            border-radius: 3px 3px 0 0;
+            border-radius: 2px;
+        }
+        
+        .tab-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        
+        /* ===== MOBILE-FIRST RESPONSIVE STYLES ===== */
+        @media (max-width: 767px) {
+            /* Compact Header for Mobile */
+            .header-banner {
+                padding: 1rem;
+                margin-bottom: 1rem;
+                border-radius: 10px;
+            }
+            
+            .header-banner h1 {
+                font-size: 1.4rem;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+            
+            .header-banner .logo {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .header-banner p {
+                font-size: 0.875rem;
+                margin-top: 0.25rem;
+            }
+            
+            /* Convert Sidebar to Horizontal Tabs on Mobile */
+            .main-container {
+                flex-direction: column;
+                border-radius: 10px;
+            }
+            
+            .nav-tabs {
+                width: 100%;
+                flex-direction: row;
+                border-left: none;
+                border-bottom: 2px solid #e2e8f0;
+                padding: 0.5rem;
+                border-radius: 10px 10px 0 0;
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                overflow-x: auto;
+                gap: 0.25rem;
+            }
+            
+            .nav-tabs .nav-item {
+                width: auto;
+                flex: 1;
+            }
+            
+            .nav-tabs .nav-link {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.875rem;
+                gap: 0.25rem;
+                flex-direction: column;
+                text-align: center;
+                justify-content: center;
+                min-height: 70px;
+            }
+            
+            .nav-tabs .nav-link i {
+                font-size: 1.5rem;
+            }
+            
+            .nav-tabs .nav-link:hover {
+                transform: none;
+            }
+            
+            .nav-tabs .nav-link.active::before {
+                display: none;
+            }
+            
+            .nav-tabs .nav-link.active::after {
+                content: '';
+                position: absolute;
+                bottom: -0.5rem;
+                right: 0;
+                left: 0;
+                height: 3px;
+                background: var(--primary-color);
+                border-radius: 3px 3px 0 0;
+            }
+            
+            .tab-content {
+                padding: 1rem;
+            }
+            
+            /* Touch-Friendly Controls on Mobile */
+            .form-control, .form-select {
+                padding: 1rem;
+                font-size: 1rem;
+                min-height: 48px;
+            }
+            
+            .btn {
+                padding: 0.875rem 1.25rem;
+                font-size: 1rem;
+                min-height: 48px;
+            }
+            
+            .btn-sm {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.875rem;
+                min-height: 38px;
+            }
+            
+            /* Make action buttons full width on mobile */
+            .card-body .btn:not(.btn-sm):not(.btn-group .btn) {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+            
+            /* Improve table readability on mobile */
+            .table {
+                font-size: 0.875rem;
+            }
+            
+            .table th, .table td {
+                padding: 0.5rem 0.25rem;
+                white-space: nowrap;
+            }
+            
+            /* Stack form columns on mobile */
+            .row.mb-3 > [class*="col-"] {
+                margin-bottom: 1rem;
+            }
+            
+            /* Compact stats on mobile */
+            .stats-card {
+                padding: 0.375rem 0.125rem;
+                min-height: 60px;
+            }
+            
+            .stats-number {
+                font-size: clamp(0.875rem, 3.5vw, 1.25rem);
+            }
+            
+            .stats-label {
+                font-size: clamp(0.55rem, 1.8vw, 0.7rem);
+            }
+            
+            /* Mobile-optimized modals */
+            .modal-dialog {
+                margin: 0.5rem;
+            }
+            
+            /* Container padding adjustment */
+            .container {
+                padding-right: 0.75rem;
+                padding-left: 0.75rem;
+            }
+        }
+        
+        /* Tablet adjustments */
+        @media (min-width: 768px) and (max-width: 991px) {
+            .nav-tabs {
+                width: 200px;
+                padding: 1rem 0.5rem;
+            }
+            
+            .nav-tabs .nav-link {
+                padding: 0.875rem 1rem;
+                font-size: 0.95rem;
+            }
+            
+            .tab-content {
+                padding: 1.5rem;
+            }
         }
         
         .card {
@@ -312,28 +513,65 @@
             border: none;
         }
         
+        /* Accordion Styles for Schedule View */
+        .accordion-button {
+            font-size: 0.95rem;
+            padding: 0.75rem 1rem;
+        }
+        
+        .accordion-button:not(.collapsed) {
+            background-color: #e0f2fe;
+            color: var(--primary-color);
+        }
+        
+        .accordion-body {
+            padding: 1rem;
+        }
+        
+        .list-group-item-action:hover {
+            background-color: #f1f5f9;
+            cursor: pointer;
+        }
+        
+        .list-group-item-action {
+            transition: all 0.2s ease;
+        }
+        
         select[multiple] {
             min-height: 200px;
         }
         
         .stats-card {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-radius: 8px;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
+            border-radius: 6px;
+            padding: 0.5rem 0.25rem;
+            margin-bottom: 0;
             border: 1px solid #cbd5e1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 70px;
         }
         
         .stats-number {
-            font-size: 1.5rem;
+            font-size: clamp(1rem, 4vw, 1.75rem);
             font-weight: bold;
             color: var(--primary-color);
+            line-height: 1.2;
+            margin-bottom: 0.25rem;
         }
         
         .stats-label {
             color: #64748b;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: clamp(0.65rem, 2vw, 0.8rem);
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            text-align: center;
         }
     </style>
 </head>
@@ -383,15 +621,15 @@
                         <div class="card-body">
                             <form id="reportForm">
                                 <div class="row mb-3">
-                                    <div class="col-md-8">
+                                    <div class="col-12 col-md-8 mb-3 mb-md-0">
                                         <label for="studentSelect" class="form-label fw-bold">
                                             <i class="bi bi-person"></i> בחר תלמיד
                                         </label>
-                                        <select class="form-select" id="studentSelect" required>
+                                        <select class="form-select form-select-lg" id="studentSelect" required>
                                             <option value="">טוען תלמידים...</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-12 col-md-4">
                                         <label class="form-label fw-bold">מידע תלמיד</label>
                                         <div id="studentInfo" class="alert alert-info" style="display: none;">
                                             <div id="studentDetails"></div>
@@ -400,11 +638,11 @@
                                 </div>
                                 
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
+                                    <div class="col-12 col-md-6 mb-3 mb-md-0">
                                         <label for="faultType" class="form-label fw-bold">
                                             <i class="bi bi-exclamation-triangle"></i> סוג התקלה
                                         </label>
-                                        <select class="form-select" id="faultType" required>
+                                        <select class="form-select form-select-lg" id="faultType" required>
                                             <option value="">בחר סוג תקלה...</option>
                                             <option value="תקלה במנעול">תקלה במנעול</option>
                                             <option value="נזק לדלת">נזק לדלת</option>
@@ -413,7 +651,7 @@
                                             <option value="אחר">אחר</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-12 col-md-6">
                                         <label class="form-label fw-bold">
                                             <i class="bi bi-bookmark-check"></i> סטטוס מיוחד
                                         </label>
@@ -433,7 +671,7 @@
                                     <label for="description" class="form-label fw-bold">
                                         <i class="bi bi-chat-text"></i> תיאור התקלה (אופציונלי)
                                     </label>
-                                    <textarea class="form-control" id="description" rows="3" 
+                                    <textarea class="form-control form-control-lg" id="description" rows="3" 
                                               placeholder="תאר את התקלה בפירוט..."></textarea>
                                 </div>
                                 
@@ -458,11 +696,11 @@
                             <!-- Filters and Chart -->
                             <div class="row mb-3">
                                 <!-- Filters Column -->
-                                <div class="col-md-5">
+                                <div class="col-12 col-md-5 mb-3 mb-md-0">
                                     <div class="row g-2">
                                         <div class="col-12">
                                             <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סינון לפי סטטוס</label>
-                                            <select class="form-select form-select-sm" id="statusFilter" onchange="filterFaults()">
+                                            <select class="form-select" id="statusFilter" onchange="filterFaults()">
                                                 <option value="all">הכל</option>
                                                 <option value="Open" selected>פתוחות</option>
                                                 <option value="Resolved">נפתרו</option>
@@ -471,7 +709,7 @@
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סינון לפי ספרים נעולים</label>
-                                            <select class="form-select form-select-sm" id="urgentFilter" onchange="filterFaults()">
+                                            <select class="form-select" id="urgentFilter" onchange="filterFaults()">
                                                 <option value="all">הכל</option>
                                                 <option value="yes">כן</option>
                                                 <option value="no">לא</option>
@@ -479,7 +717,7 @@
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חיפוש</label>
-                                            <input type="text" class="form-control form-control-sm" id="searchInput" 
+                                            <input type="text" class="form-control" id="searchInput" 
                                                    placeholder="חפש לפי שם תלמיד או בית ספר..." 
                                                    onkeyup="filterFaults()">
                                         </div>
@@ -487,7 +725,7 @@
                                 </div>
                                 
                                 <!-- Regional Chart Column -->
-                                <div class="col-md-7">
+                                <div class="col-12 col-md-7">
                                     <div class="card h-100">
                                         <div class="card-body" style="padding: 0.75rem;">
                                             <h6 class="card-title mb-2" style="font-size: 0.9rem;">
@@ -500,7 +738,7 @@
                             </div>
                             
                             <!-- Statistics -->
-                            <div class="row mb-3" id="faultsStats">
+                            <div class="row g-1 mb-3" id="faultsStats">
                                 <!-- Will be populated by JS -->
                             </div>
                             
@@ -545,14 +783,14 @@
                         </div>
                         <div class="card-body">
                             <div class="row mb-4">
-                                <div class="col-md-6">
+                                <div class="col-12 col-md-6 mb-3 mb-md-0">
                                     <label for="numTechnicians" class="form-label fw-bold">
                                         <i class="bi bi-people"></i> מספר טכנאים זמינים
                                     </label>
-                                    <input type="number" class="form-control" id="numTechnicians" 
+                                    <input type="number" class="form-control form-control-lg" id="numTechnicians" 
                                            min="1" max="10" value="3">
                                 </div>
-                                <div class="col-md-6 d-flex align-items-end">
+                                <div class="col-12 col-md-6 d-flex align-items-end">
                                     <button class="btn btn-primary btn-lg w-100" onclick="runScheduleAlgorithm()">
                                         <i class="bi bi-lightning"></i> צור סידור עבודה
                                     </button>
@@ -598,6 +836,29 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">סגור</button>
                     <button type="button" class="btn btn-primary" id="saveFaultChanges" style="display:none;">שמור שינויים</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Technician Work Log Modal -->
+    <div class="modal fade" id="technicianWorkModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-clipboard-check"></i> יומן עבודה - טכנאי</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="workLogContent">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">סגור</button>
+                    <button type="button" class="btn btn-success" onclick="saveTechnicianWork()">
+                        <i class="bi bi-save"></i> שמור עדכון
+                    </button>
                 </div>
             </div>
         </div>
@@ -916,28 +1177,28 @@
             const resolved = filteredFaults.filter(f => f.status === 'Resolved').length;
             
             document.getElementById('faultsStats').innerHTML = `
-                <div class="col-md-3">
-                    <div class="stats-card text-center">
+                <div class="col-3">
+                    <div class="stats-card">
                         <div class="stats-number">${total}</div>
-                        <div class="stats-label">סה"כ תקלות</div>
+                        <div class="stats-label" title="סה&quot;כ תקלות">סה"כ תקלות</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="stats-card text-center">
+                <div class="col-3">
+                    <div class="stats-card">
                         <div class="stats-number text-danger">${urgent}</div>
-                        <div class="stats-label">📚 ספרים נעולים</div>
+                        <div class="stats-label" title="ספרים נעולים">ספרים נעולים</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="stats-card text-center">
+                <div class="col-3">
+                    <div class="stats-card">
                         <div class="stats-number text-warning">${open}</div>
-                        <div class="stats-label">פתוחות</div>
+                        <div class="stats-label" title="פתוחות">פתוחות</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="stats-card text-center">
+                <div class="col-3">
+                    <div class="stats-card">
                         <div class="stats-number text-success">${resolved}</div>
-                        <div class="stats-label">נפתרו</div>
+                        <div class="stats-label" title="נפתרו">נפתרו</div>
                     </div>
                 </div>
             `;
@@ -1155,58 +1416,76 @@
                 <div class="row">
             `;
             
-            assignments.forEach(tech => {
+            assignments.forEach((tech, techIndex) => {
                 const schools = tech.schools || [];
                 
                 html += `
-                    <div class="col-md-4">
+                    <div class="col-12 col-md-6 col-lg-4 mb-4">
                         <div class="technician-card">
                             <h5><i class="bi bi-person-badge"></i> טכנאי #${tech.technician_id}</h5>
-                            <p class="mb-2">
-                                <strong>בתי ספר:</strong> ${schools.length}<br>
+                            <p class="mb-3">
+                                <strong>בתי ספר:</strong> ${schools.length} | 
                                 <strong>תקלות:</strong> ${tech.total_faults}<br>
-                                <strong>ציון כולל:</strong> ${tech.total_score.toFixed(2)}
+                                <strong>ציון כולל:</strong> <span class="badge bg-primary">${tech.total_score.toFixed(2)}</span>
                             </p>
-                            <hr>
-                            <h6>בתי ספר שהוקצו (לפי עדיפות):</h6>
-                            <div class="mb-2">
+                            
+                            <!-- Schools Accordion -->
+                            <div class="accordion" id="accordion-tech-${tech.technician_id}">
                 `;
                 
-                schools.forEach(school => {
-                    const urgentBadge = school.is_urgent ? '<span class="badge bg-danger">ספרים נעולים: כן</span>' : '';
-                    const scoreColor = school.priority_score >= 1000 ? 'text-danger' : 
-                                      school.priority_score >= 5 ? 'text-warning' : 'text-primary';
+                schools.forEach((school, schoolIndex) => {
+                    const schoolId = `tech${tech.technician_id}-school${schoolIndex}`;
+                    const urgentBadge = school.is_urgent ? '<span class="badge bg-danger ms-2">דחוף!</span>' : '';
                     
                     html += `
-                        <div class="alert ${school.is_urgent ? 'alert-danger' : 'alert-light'} mb-2">
-                            <strong><i class="bi bi-building"></i> ${school.school_name}</strong> ${urgentBadge}<br>
-                            <small>
-                                <i class="bi bi-geo-alt"></i> <strong>אזור:</strong> ${school.region}<br>
-                                <i class="bi bi-star-fill ${scoreColor}"></i> <strong>ציון:</strong> <span class="${scoreColor}">${school.priority_score.toFixed(2)}</span><br>
-                                <i class="bi bi-list-ol"></i> <strong>תקלות:</strong> ${school.num_faults}<br>
-                                <i class="bi bi-speedometer"></i> <strong>ממוצע חומרה:</strong> ${school.avg_severity ? school.avg_severity.toFixed(1) : 'N/A'}/5<br>
-                                <i class="bi bi-calendar-event"></i> <strong>תקלה ישנה:</strong> ${school.oldest_fault_days ? Math.floor(school.oldest_fault_days) : '0'} ימים
-                            </small>
-                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#${schoolId}">
+                                    <strong>${school.school_name}</strong> 
+                                    <span class="badge bg-secondary ms-2">${school.num_faults} תקלות</span>
+                                    ${urgentBadge}
+                                </button>
+                            </h2>
+                            <div id="${schoolId}" class="accordion-collapse collapse" 
+                                 data-bs-parent="#accordion-tech-${tech.technician_id}">
+                                <div class="accordion-body">
+                                    <small class="text-muted mb-2 d-block">
+                                        <i class="bi bi-geo-alt"></i> ${school.region} | 
+                                        <i class="bi bi-star-fill"></i> חומרה: ${school.avg_severity ? school.avg_severity.toFixed(1) : 'N/A'}/5
+                                    </small>
+                                    <div class="list-group">
                     `;
-                });
-                
-                html += `
-                            </div>
-                            <hr>
-                            <h6>רשימת תקלות מלאה:</h6>
-                            <div class="fault-list" style="max-height: 400px; overflow-y: auto;">
-                `;
-                
-                tech.faults.forEach(fault => {
+                    
+                    // Filter faults for this school
+                    const schoolFaults = tech.faults.filter(f => f.school_name === school.school_name);
+                    
+                    schoolFaults.forEach(fault => {
+                        const urgentIcon = (fault.books_stuck || fault.is_urgent) ? 
+                            '<i class="bi bi-exclamation-triangle-fill text-danger"></i>' : '';
+                        const statusBadge = getStatusBadge(fault.status || 'Open');
+                        
+                        html += `
+                            <a href="#" class="list-group-item list-group-item-action" 
+                               onclick="openTechnicianWorkLog(${fault.fault_id}, ${tech.technician_id}); return false;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        ${urgentIcon}
+                                        <strong>${fault.fault_type}</strong><br>
+                                        <small class="text-muted">
+                                            <i class="bi bi-person"></i> ${fault.student_name}
+                                        </small>
+                                    </div>
+                                    ${statusBadge}
+                                </div>
+                            </a>
+                        `;
+                    });
+                    
                     html += `
-                        <div class="fault-item">
-                            <strong>${fault.student_name}</strong><br>
-                            <small>
-                                <i class="bi bi-building"></i> ${fault.school_name} (${fault.region})<br>
-                                <i class="bi bi-exclamation-circle"></i> ${fault.fault_type}
-                            </small>
-                            ${(fault.books_stuck || fault.is_urgent) ? '<br><span class="urgent-flag">ספרים נעולים: כן</span>' : ''}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     `;
                 });
@@ -1221,6 +1500,168 @@
             html += '</div>';
             
             document.getElementById('scheduleResult').innerHTML = html;
+        }
+        
+        function getStatusBadge(status) {
+            const badges = {
+                'Open': '<span class="badge bg-warning">פתוחה</span>',
+                'Resolved': '<span class="badge bg-success">נפתרה</span>',
+                'Closed': '<span class="badge bg-secondary">סגורה</span>'
+            };
+            return badges[status] || badges['Open'];
+        }
+        
+        let currentEditingFault = null;
+        let currentTechnicianId = null;
+        
+        async function openTechnicianWorkLog(faultId, technicianId) {
+            currentEditingFault = faultId;
+            currentTechnicianId = technicianId;
+            
+            // Find the fault from allFaults
+            const fault = allFaults.find(f => f.id === faultId);
+            
+            if (!fault) {
+                alert('תקלה לא נמצאה');
+                return;
+            }
+            
+            const content = document.getElementById('workLogContent');
+            content.innerHTML = `
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <strong>פרטי התקלה</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong><i class="bi bi-person"></i> תלמיד:</strong> ${fault.student_name || 'לא ידוע'}</p>
+                                <p><strong><i class="bi bi-building"></i> בית ספר:</strong> ${fault.school_name || 'לא ידוע'}</p>
+                                <p><strong><i class="bi bi-exclamation-circle"></i> סוג תקלה:</strong> ${fault.fault_type}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong><i class="bi bi-calendar"></i> תאריך דיווח:</strong> ${new Date(fault.created_at).toLocaleDateString('he-IL')}</p>
+                                <p><strong><i class="bi bi-star-fill"></i> חומרה:</strong> ${'★'.repeat(fault.severity)}</p>
+                                <p><strong><i class="bi bi-bookmark-check"></i> ספרים נעולים:</strong> ${(fault.books_stuck || fault.is_urgent) ? 'כן ⚠️' : 'לא'}</p>
+                            </div>
+                        </div>
+                        ${fault.description ? `<p><strong>תיאור:</strong> ${fault.description}</p>` : ''}
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <strong>עדכון טכנאי #${technicianId}</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="technicianNotes" class="form-label fw-bold">
+                                <i class="bi bi-pencil-square"></i> הערות עבודה (מה בוצע?)
+                            </label>
+                            <textarea class="form-control form-control-lg" id="technicianNotes" rows="4" 
+                                      placeholder="לדוגמה: החלפתי צילינדר במנעול, בדקתי את הדלת, הכל תקין...">${fault.technician_notes || ''}</textarea>
+                            <small class="text-muted">תאר בפירוט את העבודה שביצעת לתיקון התקלה</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="faultStatus" class="form-label fw-bold">
+                                <i class="bi bi-flag"></i> סטטוס חדש
+                            </label>
+                            <select class="form-select form-select-lg" id="faultStatus">
+                                <option value="Open" ${fault.status === 'Open' ? 'selected' : ''}>פתוחה</option>
+                                <option value="Resolved" ${fault.status === 'Resolved' ? 'selected' : ''}>נפתרה ✓</option>
+                                <option value="Closed" ${fault.status === 'Closed' ? 'selected' : ''}>סגורה</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('technicianWorkModal'));
+            modal.show();
+        }
+        
+        async function saveTechnicianWork() {
+            if (!currentEditingFault || !currentTechnicianId) {
+                alert('שגיאה: לא נמצאה תקלה לעדכון');
+                return;
+            }
+            
+            const notes = document.getElementById('technicianNotes').value;
+            const status = document.getElementById('faultStatus').value;
+            
+            if (!notes.trim()) {
+                alert('נא למלא הערות עבודה');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/faults/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fault_id: currentEditingFault,
+                        status: status,
+                        technician_notes: notes,
+                        technician: `Technician ${currentTechnicianId}`
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ העדכון נשמר בהצלחה!');
+                    
+                    // Update the fault in allFaults array
+                    const faultIndex = allFaults.findIndex(f => f.id === currentEditingFault);
+                    if (faultIndex !== -1) {
+                        allFaults[faultIndex].status = status;
+                        allFaults[faultIndex].technician_notes = notes;
+                        allFaults[faultIndex].assigned_technician = `Technician ${currentTechnicianId}`;
+                        if (status === 'Resolved' || status === 'Closed') {
+                            allFaults[faultIndex].resolved_at = result.fault.resolved_at;
+                        }
+                    }
+                    
+                    // Update the status badge in the list dynamically
+                    const listItems = document.querySelectorAll('.list-group-item-action');
+                    listItems.forEach(item => {
+                        const onclick = item.getAttribute('onclick');
+                        if (onclick && onclick.includes(`openTechnicianWorkLog(${currentEditingFault},`)) {
+                            const statusBadge = item.querySelector('.badge');
+                            if (statusBadge) {
+                                // Update badge based on new status
+                                statusBadge.className = 'badge';
+                                if (status === 'Open') {
+                                    statusBadge.className += ' bg-warning';
+                                    statusBadge.textContent = 'פתוחה';
+                                } else if (status === 'Resolved') {
+                                    statusBadge.className += ' bg-success';
+                                    statusBadge.textContent = 'נפתרה';
+                                } else if (status === 'Closed') {
+                                    statusBadge.className += ' bg-secondary';
+                                    statusBadge.textContent = 'סגורה';
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('technicianWorkModal'));
+                    modal.hide();
+                    
+                    // Reload faults data in background
+                    await loadFaults();
+                } else {
+                    alert('שגיאה בשמירת העדכון: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving technician work:', error);
+                alert('שגיאה בשמירת העדכון');
+            }
         }
         
         async function showFaultDetailsModal(faultId) {
