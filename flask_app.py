@@ -257,11 +257,17 @@ def get_faults():
                     student = student_info.iloc[0]
                     fault_dict['student_name'] = f"{student['fname']} {student['lname']}"
                     fault_dict['studentId'] = student['studentId']
-                    fault_dict['school_name'] = student.get('school_name', 'N/A')
+                    school_name = student.get('school_name', 'N/A')
+                    fault_dict['school_name'] = school_name
+                    # Add region based on school mapping
+                    fault_dict['region'] = SCHOOL_MAPPING.get(school_name, 'Unknown')
                 else:
                     fault_dict['student_name'] = 'Unknown'
                     fault_dict['studentId'] = 'N/A'
                     fault_dict['school_name'] = 'N/A'
+                    fault_dict['region'] = 'Unknown'
+            else:
+                fault_dict['region'] = 'Unknown'
             
             result.append(fault_dict)
         

@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔧 מערכת ניהול תקלות לוקרים</title>
+    <title>אדון לוקר - ניהול תקלות בתי ספר</title>
     
     <!-- Bootstrap 5 CSS (RTL) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <!-- Custom Styles -->
     <style>
@@ -43,6 +46,15 @@
             font-weight: bold;
             margin: 0;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .header-banner .logo {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
         }
         
         .header-banner p {
@@ -61,6 +73,12 @@
         .nav-tabs {
             border-bottom: 2px solid #e2e8f0;
             margin-bottom: 2rem;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 1000;
+            padding-top: 0.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .nav-tabs .nav-link {
@@ -248,6 +266,37 @@
             color: #fbbf24;
         }
         
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-left: 20px;
+        }
+        
+        .sortable-header:hover {
+            background-color: rgba(37, 99, 235, 0.1);
+        }
+        
+        .sortable-header::after {
+            content: '⇅';
+            position: absolute;
+            left: 5px;
+            opacity: 0.3;
+            font-size: 0.8em;
+        }
+        
+        .sortable-header.sorted-asc::after {
+            content: '▲';
+            opacity: 1;
+            color: var(--primary-color);
+        }
+        
+        .sortable-header.sorted-desc::after {
+            content: '▼';
+            opacity: 1;
+            color: var(--primary-color);
+        }
+        
         .loading {
             text-align: center;
             padding: 3rem;
@@ -269,14 +318,14 @@
         
         .stats-card {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #cbd5e1;
         }
         
         .stats-number {
-            font-size: 2.5rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: var(--primary-color);
         }
@@ -284,6 +333,7 @@
         .stats-label {
             color: #64748b;
             font-weight: 600;
+            font-size: 0.875rem;
         }
     </style>
 </head>
@@ -291,8 +341,11 @@
     <div class="container py-4">
         <!-- Header -->
         <div class="header-banner">
-            <h1><i class="bi bi-tools"></i> מערכת ניהול תקלות לוקרים</h1>
-            <p>ממשק מקצועי לניהול ודיווח תקלות | Flask SPA Architecture</p>
+            <h1>
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fff' rx='15'/%3E%3Cpath d='M30 20h40v15H30z' fill='%232563eb'/%3E%3Crect x='30' y='40' width='15' height='15' fill='%232563eb'/%3E%3Crect x='55' y='40' width='15' height='15' fill='%232563eb'/%3E%3Crect x='30' y='60' width='15' height='15' fill='%232563eb'/%3E%3Crect x='55' y='60' width='15' height='15' fill='%232563eb'/%3E%3Ctext x='50' y='88' font-size='12' text-anchor='middle' fill='%232563eb' font-weight='bold'%3ELOCKER%3C/text%3E%3C/svg%3E" class="logo" alt="לוגו">
+                <span>אדון לוקר - ניהול תקלות בתי ספר</span>
+            </h1>
+            <p>מערכת מקצועית לניהול ומעקב תקלות בלוקרים בבתי ספר</p>
         </div>
         
         <!-- Main Container -->
@@ -402,30 +455,47 @@
                             </button>
                         </div>
                         <div class="card-body">
-                            <!-- Filters -->
+                            <!-- Filters and Chart -->
                             <div class="row mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">סינון לפי סטטוס</label>
-                                    <select class="form-select" id="statusFilter" onchange="filterFaults()">
-                                        <option value="all">הכל</option>
-                                        <option value="Open" selected>פתוחות</option>
-                                        <option value="Resolved">נפתרו</option>
-                                        <option value="Closed">סגורות</option>
-                                    </select>
+                                <!-- Filters Column -->
+                                <div class="col-md-5">
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סינון לפי סטטוס</label>
+                                            <select class="form-select form-select-sm" id="statusFilter" onchange="filterFaults()">
+                                                <option value="all">הכל</option>
+                                                <option value="Open" selected>פתוחות</option>
+                                                <option value="Resolved">נפתרו</option>
+                                                <option value="Closed">סגורות</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סינון לפי ספרים נעולים</label>
+                                            <select class="form-select form-select-sm" id="urgentFilter" onchange="filterFaults()">
+                                                <option value="all">הכל</option>
+                                                <option value="yes">כן</option>
+                                                <option value="no">לא</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חיפוש</label>
+                                            <input type="text" class="form-control form-control-sm" id="searchInput" 
+                                                   placeholder="חפש לפי שם תלמיד או בית ספר..." 
+                                                   onkeyup="filterFaults()">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">סינון לפי דחיפות</label>
-                                    <select class="form-select" id="urgentFilter" onchange="filterFaults()">
-                                        <option value="all">הכל</option>
-                                        <option value="yes">דחופות בלבד</option>
-                                        <option value="no">לא דחופות</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">חיפוש</label>
-                                    <input type="text" class="form-control" id="searchInput" 
-                                           placeholder="חפש לפי שם תלמיד או בית ספר..." 
-                                           onkeyup="filterFaults()">
+                                
+                                <!-- Regional Chart Column -->
+                                <div class="col-md-7">
+                                    <div class="card h-100">
+                                        <div class="card-body" style="padding: 0.75rem;">
+                                            <h6 class="card-title mb-2" style="font-size: 0.9rem;">
+                                                <i class="bi bi-bar-chart-fill"></i> תקלות פתוחות לפי מחוז
+                                            </h6>
+                                            <canvas id="regionChart" style="max-height: 180px;"></canvas>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -439,14 +509,14 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>מזהה</th>
-                                            <th>תלמיד</th>
-                                            <th>בית ספר</th>
-                                            <th>סוג תקלה</th>
-                                            <th>חומרה</th>
-                                            <th>דחיפות</th>
-                                            <th>סטטוס</th>
-                                            <th>תאריך</th>
+                                            <th class="sortable-header" onclick="sortTable('id')">מזהה</th>
+                                            <th class="sortable-header" onclick="sortTable('student_name')">תלמיד</th>
+                                            <th class="sortable-header" onclick="sortTable('school_name')">בית ספר</th>
+                                            <th class="sortable-header" onclick="sortTable('fault_type')">סוג תקלה</th>
+                                            <th class="sortable-header" onclick="sortTable('severity')">חומרה</th>
+                                            <th class="sortable-header" onclick="sortTable('books_stuck')">ספרים נעולים</th>
+                                            <th class="sortable-header" onclick="sortTable('status')">סטטוס</th>
+                                            <th class="sortable-header" onclick="sortTable('created_at')">תאריך</th>
                                             <th>פעולות</th>
                                         </tr>
                                     </thead>
@@ -484,7 +554,7 @@
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end">
                                     <button class="btn btn-primary btn-lg w-100" onclick="runScheduleAlgorithm()">
-                                        <i class="bi bi-lightning"></i> הרץ אלגוריתם תזמון
+                                        <i class="bi bi-lightning"></i> צור סידור עבודה
                                     </button>
                                 </div>
                             </div>
@@ -544,6 +614,9 @@
         let allStudents = [];
         let allFaults = [];
         let filteredFaults = [];
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let regionChart = null;
         
         // ============================================================================
         // INITIALIZATION
@@ -594,6 +667,7 @@
                 
                 displayFaults();
                 updateFaultsStats();
+                updateRegionChart();
                 
                 console.log(`✅ Loaded ${allFaults.length} faults`);
             } catch (error) {
@@ -688,7 +762,7 @@
                 document.getElementById('scheduleResult').innerHTML = `
                     <div class="loading">
                         <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2">מריץ אלגוריתם תזמון...</p>
+                        <p class="mt-2">יוצר סידור עבודה...</p>
                     </div>
                 `;
                 
@@ -749,7 +823,13 @@
                 return;
             }
             
-            tbody.innerHTML = filteredFaults.map(fault => `
+            // Apply sorting if active
+            let displayArray = [...filteredFaults];
+            if (sortColumn) {
+                displayArray = sortFaultsArray(displayArray);
+            }
+            
+            tbody.innerHTML = displayArray.map(fault => `
                 <tr>
                     <td><strong>#${fault.id}</strong></td>
                     <td>${fault.student_name || 'לא ידוע'}</td>
@@ -762,7 +842,7 @@
                         ${'<span class="severity-star">★</span>'.repeat(fault.severity)}
                     </td>
                     <td>
-                        ${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">� ספרים נעולים</span>' : '-'}
+                        ${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">כן</span>' : 'לא'}
                     </td>
                     <td>
                         <span class="badge badge-${fault.status.toLowerCase()}">
@@ -826,6 +906,7 @@
             
             displayFaults();
             updateFaultsStats();
+            updateRegionChart();
         }
         
         function updateFaultsStats() {
@@ -860,6 +941,200 @@
                     </div>
                 </div>
             `;
+        }
+        
+        function updateRegionChart() {
+            // Count open faults by region
+            const regionCounts = {};
+            
+            filteredFaults.forEach(fault => {
+                if (fault.status === 'Open' && fault.region) {
+                    regionCounts[fault.region] = (regionCounts[fault.region] || 0) + 1;
+                }
+            });
+            
+            // Sort regions by count
+            const sortedRegions = Object.entries(regionCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10); // Top 10 regions
+            
+            const labels = sortedRegions.map(([region]) => region);
+            const data = sortedRegions.map(([, count]) => count);
+            
+            // Destroy previous chart if exists
+            if (regionChart) {
+                regionChart.destroy();
+            }
+            
+            // Create new chart
+            const ctx = document.getElementById('regionChart').getContext('2d');
+            regionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'תקלות פתוחות',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(37, 99, 235, 0.7)',
+                            'rgba(124, 58, 237, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(99, 102, 241, 0.7)',
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(20, 184, 166, 0.7)',
+                            'rgba(251, 146, 60, 0.7)',
+                            'rgba(139, 92, 246, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(37, 99, 235, 1)',
+                            'rgba(124, 58, 237, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(99, 102, 241, 1)',
+                            'rgba(236, 72, 153, 1)',
+                            'rgba(20, 184, 166, 1)',
+                            'rgba(251, 146, 60, 1)',
+                            'rgba(139, 92, 246, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            rtl: true,
+                            textDirection: 'rtl',
+                            bodyFont: {
+                                size: 11
+                            },
+                            titleFont: {
+                                size: 12
+                            },
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    return context.parsed.y + ' תקלות פתוחות';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'מספר תקלות',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'מחוז',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ============================================================================
+        // SORTING FUNCTIONS
+        // ============================================================================
+        
+        function sortTable(column) {
+            // Toggle sort direction if clicking the same column
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Update header classes
+            document.querySelectorAll('.sortable-header').forEach(header => {
+                header.classList.remove('sorted-asc', 'sorted-desc');
+            });
+            
+            event.target.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            
+            // Redisplay with new sorting
+            displayFaults();
+        }
+        
+        function sortFaultsArray(faultsArray) {
+            return [...faultsArray].sort((a, b) => {
+                let valueA, valueB;
+                
+                switch(sortColumn) {
+                    case 'id':
+                        valueA = a.id;
+                        valueB = b.id;
+                        break;
+                    case 'student_name':
+                        valueA = (a.student_name || '').toLowerCase();
+                        valueB = (b.student_name || '').toLowerCase();
+                        break;
+                    case 'school_name':
+                        valueA = (a.school_name || '').toLowerCase();
+                        valueB = (b.school_name || '').toLowerCase();
+                        break;
+                    case 'fault_type':
+                        valueA = (a.fault_type || '').toLowerCase();
+                        valueB = (b.fault_type || '').toLowerCase();
+                        break;
+                    case 'severity':
+                        valueA = a.severity;
+                        valueB = b.severity;
+                        break;
+                    case 'books_stuck':
+                        valueA = (a.books_stuck || a.is_urgent) ? 1 : 0;
+                        valueB = (b.books_stuck || b.is_urgent) ? 1 : 0;
+                        break;
+                    case 'status':
+                        const statusOrder = {'Open': 1, 'Resolved': 2, 'Closed': 3};
+                        valueA = statusOrder[a.status] || 999;
+                        valueB = statusOrder[b.status] || 999;
+                        break;
+                    case 'created_at':
+                        valueA = new Date(a.created_at);
+                        valueB = new Date(b.created_at);
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                // Compare values
+                if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+                if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
         }
         
         function displayScheduleResults(result) {
@@ -898,7 +1173,7 @@
                 `;
                 
                 schools.forEach(school => {
-                    const urgentBadge = school.is_urgent ? '<span class="badge bg-danger">� ספרים נעולים</span>' : '';
+                    const urgentBadge = school.is_urgent ? '<span class="badge bg-danger">ספרים נעולים: כן</span>' : '';
                     const scoreColor = school.priority_score >= 1000 ? 'text-danger' : 
                                       school.priority_score >= 5 ? 'text-warning' : 'text-primary';
                     
@@ -931,7 +1206,7 @@
                                 <i class="bi bi-building"></i> ${fault.school_name} (${fault.region})<br>
                                 <i class="bi bi-exclamation-circle"></i> ${fault.fault_type}
                             </small>
-                            ${(fault.books_stuck || fault.is_urgent) ? '<br><span class="urgent-flag">� ספרים נעולים</span>' : ''}
+                            ${(fault.books_stuck || fault.is_urgent) ? '<br><span class="urgent-flag">ספרים נעולים: כן</span>' : ''}
                         </div>
                     `;
                 });
@@ -973,7 +1248,7 @@
                             <tr><th>מזהה:</th><td>#${fault.id}</td></tr>
                             <tr><th>סוג:</th><td>${fault.fault_type}</td></tr>
                             <tr><th>חומרה:</th><td>${'⭐'.repeat(fault.severity)}</td></tr>
-                            <tr><th>דחיפות:</th><td>${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">� ספרים נעולים</span>' : 'רגיל'}</td></tr>
+                            <tr><th>ספרים נעולים:</th><td>${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">כן</span>' : 'לא'}</td></tr>
                             <tr><th>חוזרת:</th><td>${fault.is_recurring ? '<span class="badge bg-warning">🔄 כן</span>' : 'לא'}</td></tr>
                             <tr><th>תאריך:</th><td>${new Date(fault.created_at).toLocaleString('he-IL')}</td></tr>
                         </table>
