@@ -420,151 +420,163 @@ def update_fault_with_notes():
 
 def run_scheduling_algorithm(faults_df, num_technicians):
     """
-    2-Stage Hybrid Scheduling Algorithm
+    3-Stage Scheduling Algorithm (Strict Region Exhaustion)
     
     Stage 1: Mathematical Priority Scoring
-    Formula: Score = 0.35*N + 0.25*U + 0.25*T + 0.15*R
-    
-    Variables:
-    - N (Efficiency - 35%): Count of open faults (normalized 1-5+)
-    - U (Severity - 25%): Average severity score (1-5 scale)
-    - T (Fairness - 25%): Age of oldest fault in days (normalized 1-5+)
-    - R (Recurring - 15%): 5 if is_recurring=True, else 1
-    
-    CRITICAL OVERRIDE: If any fault has is_urgent=True -> Score = 10000
-    
-    Stage 2: Regional Anchor & Cluster Assignment
-    - Sort all schools by Score (descending)
-    - For each technician:
-        - Find highest priority unassigned school (Anchor)
-        - Assign ALL schools from that same region to this technician
-        - Move to next technician with next highest unassigned school
-    - Each technician works in ONE region only (minimizes travel)
-    - If region has too many faults, split between technicians
-    
-    Args:
-        faults_df: DataFrame with fault data including school_name, region, severity, 
-                   is_urgent, is_recurring, created_at
-        num_technicians: Number of available technicians
-    
-    Returns:
-        Dictionary mapping technician names to lists of assigned schools with details
+    Stage 2: Assignment Logic
+        - Phase 1 (Anchors): Assign top priority schools to lock each tech to a region.
+        - Phase 2 (Strict Exhaustion): Each tech absorbs ALL remaining schools in their 
+                                       assigned region until they hit their workload cap.
+        - Phase 3 (Leftovers): Any unassigned schools (due to cap or unassigned region) 
+                               are given to the most idle tech globally.
     """
-    
     if faults_df.empty:
         return {}
     
-    # ========================================================================
-    # STAGE 1: CALCULATE PRIORITY SCORES FOR EACH SCHOOL
-    # ========================================================================
-    
+    # Calculate age
     now = datetime.utcnow()
-    
-    # Calculate age of each fault in days
     faults_df['age_days'] = faults_df['created_at'].apply(
         lambda x: (now - x).total_seconds() / 86400 if x else 0
     )
     
-    # Group by school and calculate metrics
+    # Group by school
     school_metrics = faults_df.groupby('school_name').agg({
-        'fault_id': 'count',           # N: Count of faults
-        'severity': 'mean',             # U: Average severity
-        'age_days': 'max',              # T: Oldest fault age
-        'is_recurring': 'max',          # R: Any recurring fault?
-        'is_urgent': 'max',             # Override check
-        'region': 'first'               # Region mapping
+        'fault_id': 'count',
+        'severity': 'mean',
+        'age_days': 'max',
+        'is_recurring': 'max',
+        'is_urgent': 'max',
+        'region': 'first'
     }).reset_index()
     
     school_metrics.columns = ['school_name', 'fault_count', 'avg_severity', 
                               'max_age_days', 'has_recurring', 'has_urgent', 'region']
     
-    # ========================================================================
-    # APPLY THE SCORING FORMULA WITH NORMALIZATION
-    # ========================================================================
-    
-    # N: Normalize fault count (1-5+)
+    # Priority Scoring
     school_metrics['N'] = school_metrics['fault_count'].apply(lambda x: min(x, 5))
-    
-    # U: Average severity is already 1-5 scale
     school_metrics['U'] = school_metrics['avg_severity']
-    
-    # T: Normalize age in days (1-5+)
     school_metrics['T'] = school_metrics['max_age_days'].apply(lambda x: min(max(x, 1), 5))
-    
-    # R: Recurring flag (5 if True, 1 if False)
     school_metrics['R'] = school_metrics['has_recurring'].apply(lambda x: 5 if x else 1)
     
-    # Calculate base score using the formula
     school_metrics['priority_score'] = (
         0.35 * school_metrics['N'] +
         0.25 * school_metrics['U'] +
         0.25 * school_metrics['T'] +
         0.15 * school_metrics['R']
     )
-    
-    # CRITICAL OVERRIDE: Urgent faults get MAXIMUM priority (books_stuck = True)
     school_metrics.loc[school_metrics['has_urgent'] == True, 'priority_score'] = 10000
     
-    # ========================================================================
-    # STAGE 2: ANCHOR & CLUSTER ASSIGNMENT
-    # ========================================================================
-    
-    # Sort schools by priority score (highest first)
     school_metrics = school_metrics.sort_values('priority_score', ascending=False).reset_index(drop=True)
-    
-    # Track which schools have been assigned
     school_metrics['assigned'] = False
     
-    # Initialize technician assignments
+    # Initialization
     assignments = {}
+    technician_workload = {}
+    tech_primary_region = {}
+    
     for i in range(1, num_technicians + 1):
-        assignments[f'Technician {i}'] = []
+        tech_name = f'Technician {i}'
+        assignments[tech_name] = []
+        technician_workload[tech_name] = 0
+        tech_primary_region[tech_name] = None
+        
+    total_faults = len(faults_df)
+    workload_cap = (total_faults / num_technicians) * 1.5
+
+    # ========================================================================
+    # PHASE 1: ANCHOR SEEDING (Lock regions)
+    # ========================================================================
+    num_anchors = min(num_technicians, len(school_metrics))
     
-    # Assign schools using Regional Anchor & Cluster strategy
-    tech_index = 0
+    for i in range(num_anchors):
+        school = school_metrics.iloc[i]
+        tech_name = f'Technician {i + 1}'
+        
+        school_name = school['school_name']
+        region = school['region']
+        num_faults = school['fault_count']
+        
+        assignments[tech_name].append({
+            'school_name': school_name,
+            'region': region,
+            'priority_score': float(school['priority_score']),
+            'num_faults': int(num_faults),
+            'is_urgent': bool(school['has_urgent']),
+            'avg_severity': float(school['avg_severity']),
+            'oldest_fault_days': float(school['max_age_days']),
+            'faults': faults_df[faults_df['school_name'] == school_name].to_dict(orient='records'),
+            'assignment_type': 'Phase 1 - Anchor'
+        })
+        
+        technician_workload[tech_name] += num_faults
+        tech_primary_region[tech_name] = region
+        school_metrics.loc[i, 'assigned'] = True
+
+    # ========================================================================
+    # PHASE 2: STRICT REGION EXHAUSTION
+    # ========================================================================
+    # Each tech absorbs ALL unassigned schools in their primary region until capped
     
-    while school_metrics[~school_metrics['assigned']].shape[0] > 0:
-        # Get current technician
-        current_tech = f'Technician {tech_index + 1}'
-        
-        # Find the highest priority unassigned school (ANCHOR)
-        unassigned_schools = school_metrics[~school_metrics['assigned']]
-        
-        if unassigned_schools.empty:
-            break
-        
-        # Get the top priority school and its region
-        anchor_school = unassigned_schools.iloc[0]
-        anchor_region = anchor_school['region']
-        
-        # Get ALL unassigned schools from the same region as the anchor
+    for tech_name, primary_region in tech_primary_region.items():
+        if not primary_region:
+            continue
+            
+        # Find all unassigned schools in this specific region
         region_schools = school_metrics[
-            (school_metrics['region'] == anchor_region) & 
-            (~school_metrics['assigned'])
+            (~school_metrics['assigned']) & 
+            (school_metrics['region'] == primary_region)
         ]
         
-        # Assign all schools in this region to the current technician
-        for _, school in region_schools.iterrows():
-            # Get all faults for this school
-            school_faults = faults_df[faults_df['school_name'] == school['school_name']]
+        for idx, school in region_schools.iterrows():
+            num_faults = school['fault_count']
             
-            assignments[current_tech].append({
-                'school_name': school['school_name'],
-                'region': school['region'],
-                'priority_score': float(school['priority_score']),
-                'num_faults': int(school['fault_count']),
-                'is_urgent': bool(school['has_urgent']),
-                'avg_severity': float(school['avg_severity']),
-                'oldest_fault_days': float(school['max_age_days']),
-                'faults': school_faults.to_dict(orient='records')
-            })
-            
-            # Mark school as assigned
-            school_metrics.loc[school_metrics['school_name'] == school['school_name'], 'assigned'] = True
-        
-        # Move to next technician (round-robin)
-        tech_index = (tech_index + 1) % num_technicians
+            # If the tech has capacity, assign it to them
+            if technician_workload[tech_name] + num_faults <= workload_cap:
+                school_name = school['school_name']
+                assignments[tech_name].append({
+                    'school_name': school_name,
+                    'region': primary_region,
+                    'priority_score': float(school['priority_score']),
+                    'num_faults': int(num_faults),
+                    'is_urgent': bool(school['has_urgent']),
+                    'avg_severity': float(school['avg_severity']),
+                    'oldest_fault_days': float(school['max_age_days']),
+                    'faults': faults_df[faults_df['school_name'] == school_name].to_dict(orient='records'),
+                    'assignment_type': 'Phase 2 - Region Absorbed'
+                })
+                technician_workload[tech_name] += num_faults
+                school_metrics.loc[idx, 'assigned'] = True
+
+    # ========================================================================
+    # PHASE 3: GLOBAL LEFTOVERS (Spillover / Uncovered Regions)
+    # ========================================================================
+    # Any schools still unassigned go to the most idle tech globally
     
+    unassigned_schools = school_metrics[~school_metrics['assigned']]
+    
+    for idx, school in unassigned_schools.iterrows():
+        num_faults = school['fault_count']
+        school_name = school['school_name']
+        region = school['region']
+        
+        # Find the absolute most idle tech right now
+        best_tech = min(technician_workload.items(), key=lambda x: x[1])[0]
+        
+        assignments[best_tech].append({
+            'school_name': school_name,
+            'region': region,
+            'priority_score': float(school['priority_score']),
+            'num_faults': int(num_faults),
+            'is_urgent': bool(school['has_urgent']),
+            'avg_severity': float(school['avg_severity']),
+            'oldest_fault_days': float(school['max_age_days']),
+            'faults': faults_df[faults_df['school_name'] == school_name].to_dict(orient='records'),
+            'assignment_type': 'Phase 3 - Overflow Leftover'
+        })
+        
+        technician_workload[best_tech] += num_faults
+        school_metrics.loc[idx, 'assigned'] = True
+
     return assignments
 
 @app.route('/api/schedule', methods=['POST'])
