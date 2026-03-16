@@ -27,11 +27,9 @@ app.config['JSON_AS_ASCII'] = False  # Support Hebrew characters
 # DATABASE CONFIGURATION
 # ============================================================================
 
-POSTGRES_URL = os.getenv('DATABASE_URL', 'postgresql://team41:xBjwE7X6BjQjARSGTFcWOg7TJ0ZiQbyq@dpg-d615mm24d50c73eh9o0g-a.oregon-postgres.render.com/studentlocker')
 SQLITE_URL = 'sqlite:///faults_system.db'
 
-# Database engines
-postgres_engine = create_engine(POSTGRES_URL, echo=False, pool_pre_ping=True, pool_recycle=3600)
+# Database engine (local SQLite only)
 sqlite_engine = create_engine(SQLITE_URL, echo=False, connect_args={'check_same_thread': False})
 
 Base = declarative_base()
@@ -43,58 +41,23 @@ Base = declarative_base()
 GLOBAL_STUDENTS_DF = None  # Will be loaded on startup
 
 def load_students_to_cache():
-    """Load all students from PostgreSQL into global cache (RAM)"""
+    """Load all students from local SQLite into global cache (RAM)"""
     global GLOBAL_STUDENTS_DF
     
-    print("🔄 Loading students from PostgreSQL into RAM cache...")
+    print("🔄 Loading students from local SQLite into RAM cache...")
     
     try:
-        query = """
-            SELECT DISTINCT
-                s.id,
-                s."fname",
-                s."lname",
-                s."studentId",
-                s.class,
-                s."classNumber",
-                s."parentPhone",
-                s.email,
-                sc.name as school_name
-            FROM "Student" s
-            LEFT JOIN "School" sc ON s."schoolId" = CAST(sc.id AS TEXT)
-            ORDER BY s."fname", s."lname"
-        """
+        query = "SELECT id, fname, lname, studentId, [class], classNumber, parentPhone, email, school_name FROM students ORDER BY fname, lname"
         
-        with postgres_engine.connect() as conn:
+        with sqlite_engine.connect() as conn:
             GLOBAL_STUDENTS_DF = pd.read_sql(query, conn)
         
         print(f"✅ Loaded {len(GLOBAL_STUDENTS_DF)} students into RAM cache")
         return True
     except Exception as e:
         print(f"❌ Error loading students: {e}")
-        # Fallback to simple query
-        try:
-            query = """
-                SELECT DISTINCT
-                    s.id,
-                    s."fname",
-                    s."lname",
-                    s."studentId",
-                    s.class,
-                    s."classNumber",
-                    s."parentPhone",
-                    s.email,
-                    NULL as school_name
-                FROM "Student" s
-                ORDER BY s."fname", s."lname"
-            """
-            with postgres_engine.connect() as conn:
-                GLOBAL_STUDENTS_DF = pd.read_sql(query, conn)
-            print(f"✅ Loaded {len(GLOBAL_STUDENTS_DF)} students (fallback mode)")
-            return True
-        except Exception as e2:
-            print(f"❌ Fatal error loading students: {e2}")
-            return False
+        GLOBAL_STUDENTS_DF = pd.DataFrame(columns=['id', 'fname', 'lname', 'studentId', 'class', 'classNumber', 'parentPhone', 'email', 'school_name'])
+        return False
 
 # ============================================================================
 # SCHOOL TO REGION MAPPING
@@ -173,8 +136,29 @@ def get_severity(fault_type):
     return SEVERITY_MAP.get(fault_type, 1)
 
 # ============================================================================
-# SQLITE MODEL - Faults Table
+# SQLITE MODELS
 # ============================================================================
+
+class School(Base):
+    __tablename__ = 'schools'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+
+
+class Student(Base):
+    __tablename__ = 'students'
+    
+    id = Column(String, primary_key=True)  # UUID
+    fname = Column(String, nullable=False)
+    lname = Column(String, nullable=False)
+    studentId = Column(String, nullable=False)
+    student_class = Column('class', String, nullable=True)
+    classNumber = Column(Integer, nullable=True)
+    parentPhone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    school_name = Column(String, nullable=True)
+
 
 class Fault(Base):
     __tablename__ = 'faults'
@@ -674,8 +658,6 @@ def schedule_technicians():
 
 if __name__ == '__main__':
     # Load students into cache BEFORE starting the server
-    if load_students_to_cache():
-        print("✅ Flask server ready with cached students data")
-        app.run(debug=True, host='0.0.0.0', port=5000)
-    else:
-        print("❌ Failed to load students cache. Server not started.")
+    load_students_to_cache()
+    print("✅ Flask server ready")
+    app.run(debug=True, host='0.0.0.0', port=5000)
