@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"python flask_app.py\")",
+      "Bash(PYTHONIOENCODING=utf-8 python flask_app.py)"
+    ]
+  }
+}

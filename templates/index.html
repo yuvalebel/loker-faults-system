@@ -543,6 +543,83 @@
             min-height: 200px;
         }
         
+        /* ===== STUDENT SEARCH COMBO BOX ===== */
+        .student-search-wrapper {
+            position: relative;
+        }
+
+        .student-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            left: 0;
+            background: white;
+            border: 2px solid #3b82f6;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+        }
+
+        .student-option {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.95rem;
+            transition: background 0.15s;
+            direction: rtl;
+            text-align: right;
+        }
+
+        .student-option:hover {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .student-option:last-child {
+            border-bottom: none;
+        }
+
+        .student-option.no-results {
+            color: #94a3b8;
+            font-style: italic;
+            cursor: default;
+        }
+
+        .student-option.no-results:hover {
+            background: white;
+            color: #94a3b8;
+        }
+
+        /* ===== STATS CARDS ===== */
+        .stats-card-primary {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            border-radius: 10px;
+            padding: 1rem 0.5rem;
+            text-align: center;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+        }
+
+        .stats-number-primary {
+            font-size: clamp(2rem, 6vw, 3rem);
+            font-weight: bold;
+            color: white;
+            line-height: 1;
+        }
+
+        .stats-label-primary {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.9);
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
         .stats-card {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             border-radius: 6px;
@@ -689,12 +766,16 @@
                             <form id="reportForm">
                                 <div class="row mb-3">
                                     <div class="col-12 col-md-8 mb-3 mb-md-0">
-                                        <label for="studentSelect" class="form-label fw-bold">
-                                            <i class="bi bi-person"></i> בחר תלמיד
+                                        <label for="studentSearchInput" class="form-label fw-bold">
+                                            <i class="bi bi-person"></i> חיפוש תלמיד
                                         </label>
-                                        <select class="form-select form-select-lg" id="studentSelect" required>
-                                            <option value="">טוען תלמידים...</option>
-                                        </select>
+                                        <div class="student-search-wrapper">
+                                            <input type="text" class="form-control form-control-lg" id="studentSearchInput"
+                                                   placeholder="הקלד שם, ת.ז, או בית ספר..."
+                                                   autocomplete="off" dir="rtl">
+                                            <input type="hidden" id="studentSelect">
+                                            <div id="studentDropdown" class="student-dropdown" style="display:none;"></div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-4">
                                         <label class="form-label fw-bold">מידע תלמיד</label>
@@ -704,18 +785,48 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Locker number -->
                                 <div class="row mb-3">
+                                    <div class="col-12 col-md-4 mb-3 mb-md-0">
+                                        <label for="lockerId" class="form-label fw-bold">
+                                            <i class="bi bi-lock"></i> מספר לוקר
+                                        </label>
+                                        <input type="text" class="form-control form-control-lg" id="lockerId"
+                                               placeholder="לדוגמה: A-12">
+                                    </div>
+                                </div>
+
+                                <!-- Locker type + Fault type -->
+                                <div class="row mb-3">
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-gear"></i> סוג הלוקר
+                                        </label>
+                                        <div class="d-flex gap-3">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="lockerType"
+                                                       id="lockerMechanical" value="mechanical"
+                                                       onchange="updateFaultTypeOptions()">
+                                                <label class="form-check-label fw-bold" for="lockerMechanical">
+                                                    🔧 מכאני
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="lockerType"
+                                                       id="lockerDigital" value="digital"
+                                                       onchange="updateFaultTypeOptions()">
+                                                <label class="form-check-label fw-bold" for="lockerDigital">
+                                                    💻 דיגיטלי
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="col-12 col-md-6 mb-3 mb-md-0">
                                         <label for="faultType" class="form-label fw-bold">
                                             <i class="bi bi-exclamation-triangle"></i> סוג התקלה
                                         </label>
-                                        <select class="form-select form-select-lg" id="faultType" required>
-                                            <option value="">בחר סוג תקלה...</option>
-                                            <option value="תקלה במנעול">תקלה במנעול</option>
-                                            <option value="נזק לדלת">נזק לדלת</option>
-                                            <option value="הקוד לא עובד">הקוד לא עובד</option>
-                                            <option value="מפתח אבוד">מפתח אבוד</option>
-                                            <option value="אחר">אחר</option>
+                                        <select class="form-select form-select-lg" id="faultType" required disabled>
+                                            <option value="">בחר קודם סוג לוקר...</option>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6">
@@ -932,6 +1043,55 @@
         </div>
     </div>
     
+    <!-- Urgent Fault Alert Banner -->
+    <div id="urgentAlertBanner" style="
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        z-index: 99999;
+        color: white;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        direction: rtl;
+        transition: background 0.5s;
+    ">
+        <div style="max-width: 960px; margin: 0 auto; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <span style="font-size: 1.6rem;" id="urgentAlertIcon">🚨</span>
+            <div style="flex: 1;">
+                <strong style="font-size: 1.05rem;" id="urgentAlertTitle">קריאה דחופה חדשה!</strong>
+                <div id="urgentAlertBody" style="font-size: 0.875rem; margin-top: 0.2rem; opacity: 0.9;"></div>
+            </div>
+            <div id="urgentAlertActions"></div>
+            <button class="btn btn-outline-light btn-sm" onclick="dismissUrgentAlert()">✕</button>
+        </div>
+    </div>
+
+    <!-- Live refresh indicator -->
+    <div id="liveRefreshBadge" style="
+        position: fixed;
+        bottom: 1rem;
+        left: 1rem;
+        background: rgba(30,41,59,0.85);
+        color: #94a3b8;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.7rem;
+        border-radius: 20px;
+        z-index: 9000;
+        direction: rtl;
+    ">⟳ <span id="lastRefreshText">טוען...</span></div>
+
+    <style>
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+            50%       { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+        }
+        #urgentAlertBanner { animation: slideDown 0.4s ease; }
+    </style>
+
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -957,8 +1117,8 @@
             // Form submission
             document.getElementById('reportForm').addEventListener('submit', handleReportSubmit);
             
-            // Student selection change
-            document.getElementById('studentSelect').addEventListener('change', handleStudentSelect);
+            // Student search combo box
+            setupStudentSearch();
         });
         
         // ============================================================================
@@ -969,23 +1129,74 @@
             try {
                 const response = await fetch('/api/students');
                 allStudents = await response.json();
-                
-                const select = document.getElementById('studentSelect');
-                select.innerHTML = '<option value="">בחר תלמיד...</option>';
-                
-                allStudents.forEach(student => {
-                    const option = document.createElement('option');
-                    option.value = student.id;
-                    option.textContent = student.display_name;
-                    option.dataset.student = JSON.stringify(student);
-                    select.appendChild(option);
-                });
-                
                 console.log(`✅ Loaded ${allStudents.length} students`);
             } catch (error) {
                 console.error('Error loading students:', error);
                 alert('שגיאה בטעינת תלמידים');
             }
+        }
+
+        function setupStudentSearch() {
+            const input = document.getElementById('studentSearchInput');
+            const dropdown = document.getElementById('studentDropdown');
+
+            input.addEventListener('input', function() {
+                const query = this.value.trim();
+                document.getElementById('studentSelect').value = '';
+                document.getElementById('studentInfo').style.display = 'none';
+
+                if (!query) {
+                    dropdown.style.display = 'none';
+                    return;
+                }
+
+                const q = query.toLowerCase();
+                const matches = allStudents.filter(s => {
+                    const fullName = `${s.fname} ${s.lname}`.toLowerCase();
+                    const idNum = (s.studentId || '').toLowerCase();
+                    const school = (s.school_name || '').toLowerCase();
+                    return fullName.includes(q) || idNum.includes(q) || school.includes(q);
+                }).slice(0, 12);
+
+                if (matches.length === 0) {
+                    dropdown.innerHTML = '<div class="student-option no-results">לא נמצאו תלמידים</div>';
+                } else {
+                    dropdown.innerHTML = matches.map(s => {
+                        const safeData = JSON.stringify(s).replace(/'/g, '&#39;');
+                        return `<div class="student-option" data-id="${s.id}" data-student='${safeData}'>
+                            <strong>${s.fname} ${s.lname}</strong> &nbsp;|&nbsp; ת.ז: ${s.studentId} &nbsp;|&nbsp; ${s.school_name || 'אין ב"ס'}
+                        </div>`;
+                    }).join('');
+
+                    dropdown.querySelectorAll('.student-option[data-id]').forEach(opt => {
+                        opt.addEventListener('click', function() {
+                            const student = JSON.parse(this.dataset.student.replace(/&#39;/g, "'"));
+                            document.getElementById('studentSelect').value = student.id;
+                            input.value = `${student.fname} ${student.lname} | ת.ז: ${student.studentId}`;
+                            dropdown.style.display = 'none';
+                            showStudentInfo(student);
+                        });
+                    });
+                }
+                dropdown.style.display = 'block';
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.student-search-wrapper')) {
+                    dropdown.style.display = 'none';
+                }
+            });
+        }
+
+        function showStudentInfo(student) {
+            document.getElementById('studentDetails').innerHTML = `
+                <strong>שם:</strong> ${student.fname} ${student.lname}<br>
+                <strong>ת.ז:</strong> ${student.studentId}<br>
+                <strong>כיתה:</strong> ${student.class || ''}'${student.classNumber || ''}<br>
+                <strong>בית ספר:</strong> ${student.school_name || 'לא ידוע'}
+            `;
+            document.getElementById('studentInfo').style.display = 'block';
         }
         
         async function loadFaults() {
@@ -1008,17 +1219,23 @@
         
         async function handleReportSubmit(e) {
             e.preventDefault();
-            
+
             const studentId = document.getElementById('studentSelect').value;
             const faultType = document.getElementById('faultType').value;
             const booksStuck = document.getElementById('booksStuck').checked;
             const description = document.getElementById('description').value;
-            
-            if (!studentId || !faultType) {
-                alert('אנא מלא את כל השדות הנדרשים');
+            const lockerId = document.getElementById('lockerId').value.trim();
+
+            if (!studentId) {
+                alert('אנא בחר תלמיד מהרשימה');
+                document.getElementById('studentSearchInput').focus();
                 return;
             }
-            
+            if (!faultType) {
+                alert('אנא בחר סוג תקלה');
+                return;
+            }
+
             try {
                 const response = await fetch('/api/faults', {
                     method: 'POST',
@@ -1027,14 +1244,15 @@
                     },
                     body: JSON.stringify({
                         student_id_ext: studentId,
+                        locker_id: lockerId || null,
                         fault_type: faultType,
                         books_stuck: booksStuck,
                         description: description || null
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     let message = `✅ ${result.message}`;
                     if (result.is_recurring) {
@@ -1042,8 +1260,12 @@
                     }
                     alert(message);
                     document.getElementById('reportForm').reset();
+                    document.getElementById('studentSearchInput').value = '';
+                    document.getElementById('studentSelect').value = '';
                     document.getElementById('studentInfo').style.display = 'none';
-                    loadFaults(); // Refresh faults list
+                    document.getElementById('faultType').innerHTML = '<option value="">בחר קודם סוג לוקר...</option>';
+                    document.getElementById('faultType').disabled = true;
+                    loadFaults();
                 } else {
                     alert('❌ שגיאה: ' + result.error);
                 }
@@ -1124,24 +1346,41 @@
         // UI FUNCTIONS
         // ============================================================================
         
-        function handleStudentSelect(e) {
-            const selectedOption = e.target.selectedOptions[0];
-            
-            if (!selectedOption || !selectedOption.dataset.student) {
-                document.getElementById('studentInfo').style.display = 'none';
+        // Fault type lists per locker type
+        const FAULT_TYPES = {
+            mechanical: [
+                'תקלה במנעול',
+                'נזק לדלת',
+                'מפתח אבוד',
+                'לוקר לא נסגר',
+                'ציר דלת שבור',
+                'אחר'
+            ],
+            digital: [
+                'הקוד לא עובד',
+                'מסך לא מגיב',
+                'בעיה בסוללה',
+                'תקלה בלוח הקלדה',
+                'נעילת חירום',
+                'אחר'
+            ]
+        };
+
+        function updateFaultTypeOptions() {
+            const mechanical = document.getElementById('lockerMechanical').checked;
+            const digital = document.getElementById('lockerDigital').checked;
+            const select = document.getElementById('faultType');
+
+            if (!mechanical && !digital) {
+                select.innerHTML = '<option value="">בחר קודם סוג לוקר...</option>';
+                select.disabled = true;
                 return;
             }
-            
-            const student = JSON.parse(selectedOption.dataset.student);
-            
-            document.getElementById('studentDetails').innerHTML = `
-                <strong>שם:</strong> ${student.fname} ${student.lname}<br>
-                <strong>ת.ז:</strong> ${student.studentId}<br>
-                <strong>כיתה:</strong> ${student.class}'${student.classNumber}<br>
-                <strong>בית ספר:</strong> ${student.school_name || 'לא ידוע'}
-            `;
-            
-            document.getElementById('studentInfo').style.display = 'block';
+
+            const types = mechanical ? FAULT_TYPES.mechanical : FAULT_TYPES.digital;
+            select.innerHTML = '<option value="">בחר סוג תקלה...</option>' +
+                types.map(t => `<option value="${t}">${t}</option>`).join('');
+            select.disabled = false;
         }
         
         function displayFaults() {
@@ -1152,10 +1391,14 @@
                 return;
             }
             
-            // Apply sorting if active
+            // Apply sorting: default alphabetical by student name, or active column sort
             let displayArray = [...filteredFaults];
             if (sortColumn) {
                 displayArray = sortFaultsArray(displayArray);
+            } else {
+                displayArray.sort((a, b) =>
+                    (a.student_name || '').localeCompare(b.student_name || '', 'he')
+                );
             }
             
             tbody.innerHTML = displayArray.map(fault => `
@@ -1246,27 +1489,27 @@
             
             document.getElementById('faultsStats').innerHTML = `
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card">
-                        <div class="stats-number">${total}</div>
-                        <div class="stats-label" title="סה&quot;כ תקלות">סה"כ תקלות</div>
+                    <div class="stats-card text-center" style="background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border: 2px solid #ef4444;">
+                        <div class="stats-number" style="color: #dc2626;">${open}</div>
+                        <div class="stats-label" style="color: #991b1b; font-weight: 700;">תקלות פתוחות</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card">
+                    <div class="stats-card text-center">
                         <div class="stats-number text-danger">${urgent}</div>
-                        <div class="stats-label" title="ספרים נעולים">ספרים נעולים</div>
+                        <div class="stats-label">ספרים נעולים</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card">
-                        <div class="stats-number text-warning">${open}</div>
-                        <div class="stats-label" title="פתוחות">פתוחות</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card">
+                    <div class="stats-card text-center">
                         <div class="stats-number text-success">${resolved}</div>
-                        <div class="stats-label" title="נפתרו">נפתרו</div>
+                        <div class="stats-label">נפתרו</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 mb-2 mb-md-0">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${total}</div>
+                        <div class="stats-label">סה"כ תקלות</div>
                     </div>
                 </div>
             `;
@@ -1605,6 +1848,7 @@
                             <div class="col-md-6">
                                 <p><strong><i class="bi bi-person"></i> תלמיד:</strong> ${fault.student_name || 'לא ידוע'}</p>
                                 <p><strong><i class="bi bi-building"></i> בית ספר:</strong> ${fault.school_name || 'לא ידוע'}</p>
+                                <p><strong><i class="bi bi-lock"></i> לוקר:</strong> ${fault.locker_id || '<span class="text-muted">לא צוין</span>'}</p>
                                 <p><strong><i class="bi bi-exclamation-circle"></i> סוג תקלה:</strong> ${fault.fault_type}</p>
                             </div>
                             <div class="col-md-6">
@@ -1623,12 +1867,26 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="technicianNotes" class="form-label fw-bold">
-                                <i class="bi bi-pencil-square"></i> הערות עבודה (מה בוצע?)
+                            <label for="technicianNotesSelect" class="form-label fw-bold">
+                                <i class="bi bi-pencil-square"></i> פעולה שבוצעה
                             </label>
-                            <textarea class="form-control form-control-lg" id="technicianNotes" rows="4" 
-                                      placeholder="לדוגמה: החלפתי צילינדר במנעול, בדקתי את הדלת, הכל תקין...">${fault.technician_notes || ''}</textarea>
-                            <small class="text-muted">תאר בפירוט את העבודה שביצעת לתיקון התקלה</small>
+                            <select class="form-select form-select-lg" id="technicianNotesSelect"
+                                    onchange="handleTechNoteSelect()">
+                                <option value="">בחר פעולה שבוצעה...</option>
+                                <option value="החלפת צילינדר במנעול">החלפת צילינדר במנעול</option>
+                                <option value="תיקון דלת / ציר">תיקון דלת / ציר</option>
+                                <option value="הכנת מפתח חדש">הכנת מפתח חדש</option>
+                                <option value="איפוס קוד דיגיטלי">איפוס קוד דיגיטלי</option>
+                                <option value="החלפת סוללה">החלפת סוללה</option>
+                                <option value="תיקון לוח הקלדה">תיקון לוח הקלדה</option>
+                                <option value="בדיקה - תקין, בעיה ביד משתמש">בדיקה - תקין, בעיה ביד משתמש</option>
+                                <option value="אחר">אחר (הקלד ידנית)</option>
+                            </select>
+                            <div id="technicianNotesOtherWrap" style="display:none; margin-top:0.5rem;">
+                                <textarea class="form-control" id="technicianNotesOther" rows="3"
+                                          placeholder="תאר בפירוט את הפעולה שבוצעה..."></textarea>
+                            </div>
+                            <input type="hidden" id="technicianNotes" value="${fault.technician_notes || ''}">
                         </div>
                         
                         <div class="mb-3">
@@ -1645,22 +1903,60 @@
                 </div>
             `;
             
+            // Pre-select existing notes if they match a list option
+            if (fault.technician_notes) {
+                const sel = document.getElementById('technicianNotesSelect');
+                const existingNote = fault.technician_notes;
+                let matched = false;
+                for (const opt of sel.options) {
+                    if (opt.value === existingNote) {
+                        sel.value = existingNote;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    sel.value = 'אחר';
+                    document.getElementById('technicianNotesOtherWrap').style.display = 'block';
+                    document.getElementById('technicianNotesOther').value = existingNote;
+                }
+            }
+
             // Show the modal
             const modal = new bootstrap.Modal(document.getElementById('technicianWorkModal'));
             modal.show();
         }
         
+        function handleTechNoteSelect() {
+            const sel = document.getElementById('technicianNotesSelect');
+            const otherWrap = document.getElementById('technicianNotesOtherWrap');
+            if (sel.value === 'אחר') {
+                otherWrap.style.display = 'block';
+            } else {
+                otherWrap.style.display = 'none';
+            }
+        }
+
+        function getTechnicianNotesValue() {
+            const sel = document.getElementById('technicianNotesSelect');
+            if (!sel) return '';
+            if (sel.value === 'אחר') {
+                return (document.getElementById('technicianNotesOther').value || '').trim();
+            }
+            return sel.value;
+        }
+
         async function saveTechnicianWork() {
             if (!currentEditingFault || !currentTechnicianId) {
                 alert('שגיאה: לא נמצאה תקלה לעדכון');
                 return;
             }
-            
-            const notes = document.getElementById('technicianNotes').value;
+
+            const notes = getTechnicianNotesValue();
             const status = document.getElementById('faultStatus').value;
-            
+
             if (!notes.trim()) {
-                alert('נא למלא הערות עבודה');
+                alert('נא לבחור פעולה שבוצעה');
                 return;
             }
             
@@ -1755,6 +2051,7 @@
                         <h6><i class="bi bi-info-circle"></i> פרטי תקלה</h6>
                         <table class="table table-sm">
                             <tr><th>מזהה:</th><td>#${fault.id}</td></tr>
+                            <tr><th>לוקר:</th><td>${fault.locker_id ? `<strong class="text-primary">${fault.locker_id}</strong>` : '<span class="text-muted">לא צוין</span>'}</td></tr>
                             <tr><th>סוג:</th><td>${fault.fault_type}</td></tr>
                             <tr><th>חומרה:</th><td>${'⭐'.repeat(fault.severity)}</td></tr>
                             <tr><th>ספרים נעולים:</th><td>${(fault.books_stuck || fault.is_urgent) ? '<span class="urgent-flag">כן</span>' : 'לא'}</td></tr>
@@ -1854,6 +2151,203 @@
             };
             return labels[status] || status;
         }
+
+        // ============================================================================
+        // LIVE REFRESH + URGENT FAULT DETECTION
+        // ============================================================================
+
+        let knownFaultIds = new Set();
+        let autoRefreshInterval = null;
+        let urgentPendingFaultId = null;
+        const REFRESH_INTERVAL_MS = 30000; // 30 seconds
+
+        function startAutoRefresh() {
+            updateRefreshBadge();
+            autoRefreshInterval = setInterval(async () => {
+                await loadFaults();
+                updateRefreshBadge();
+            }, REFRESH_INTERVAL_MS);
+        }
+
+        function updateRefreshBadge() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('lastRefreshText').textContent = `עודכן ${timeStr}`;
+        }
+
+        // Called after every loadFaults() — detects newly arrived urgent faults
+        function checkForNewUrgentFaults(freshFaults) {
+            if (knownFaultIds.size === 0) {
+                // First load — just populate the set, don't alert
+                freshFaults.forEach(f => knownFaultIds.add(f.id));
+                return;
+            }
+
+            const newUrgent = freshFaults.filter(f =>
+                !knownFaultIds.has(f.id) &&
+                (f.books_stuck || f.is_urgent) &&
+                f.status === 'Open'
+            );
+
+            // Update known set
+            freshFaults.forEach(f => knownFaultIds.add(f.id));
+
+            if (newUrgent.length > 0) {
+                showUrgentAlert(newUrgent[0]); // Show the first new urgent fault
+            }
+        }
+
+        function showUrgentAlert(fault) {
+            urgentPendingFaultId = fault.id;
+
+            const banner = document.getElementById('urgentAlertBanner');
+            banner.style.background = 'linear-gradient(135deg, #dc2626, #991b1b)';
+            document.getElementById('urgentAlertIcon').textContent = '🚨';
+            document.getElementById('urgentAlertTitle').textContent = 'קריאה דחופה! ספרים נעולים';
+            document.getElementById('urgentAlertBody').innerHTML =
+                `תלמיד: <strong>${fault.student_name || 'לא ידוע'}</strong> | ` +
+                `בית ספר: <strong>${fault.school_name || 'לא ידוע'}</strong>` +
+                (fault.locker_id ? ` | לוקר: <strong>${fault.locker_id}</strong>` : '');
+            document.getElementById('urgentAlertActions').innerHTML = '';
+            banner.style.display = 'block';
+
+            // Flash tab title
+            let origTitle = document.title;
+            let flashCount = 0;
+            const flashInterval = setInterval(() => {
+                document.title = flashCount % 2 === 0 ? '🚨 קריאה דחופה!' : origTitle;
+                if (++flashCount >= 10) { clearInterval(flashInterval); document.title = origTitle; }
+            }, 600);
+
+            // Auto-assign immediately
+            autoAssignNearest(fault.id);
+        }
+
+        function dismissUrgentAlert() {
+            document.getElementById('urgentAlertBanner').style.display = 'none';
+            urgentPendingFaultId = null;
+        }
+
+        // ============================================================================
+        // AUTO-ASSIGN NEAREST TECHNICIAN
+        // ============================================================================
+
+        const REGION_LABELS = {
+            'South': 'דרום', 'Jerusalem': 'ירושלים', 'Center': 'מרכז',
+            'North': 'צפון', 'Lowland': 'שפלה', 'Unknown': 'לא ידוע'
+        };
+
+        async function autoAssignNearest(faultId) {
+            const banner = document.getElementById('urgentAlertBanner');
+
+            // Phase 1: show "assigning" state
+            banner.style.background = 'linear-gradient(135deg, #b45309, #d97706)';
+            document.getElementById('urgentAlertIcon').textContent = '⏳';
+            document.getElementById('urgentAlertTitle').textContent = 'מקצה טכנאי קרוב...';
+            document.getElementById('urgentAlertActions').innerHTML = '';
+
+            try {
+                // Step 1: get ranked technicians
+                const suggestRes = await fetch('/api/suggest_technician', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_id: faultId })
+                });
+                const suggestData = await suggestRes.json();
+                if (!suggestData.success || !suggestData.ranked_technicians.length)
+                    throw new Error('לא נמצאו טכנאים זמינים');
+
+                const best = suggestData.ranked_technicians[0];
+                const regionHe = REGION_LABELS[suggestData.fault_region] || suggestData.fault_region;
+                const techRegionHe = REGION_LABELS[best.current_region] || best.current_region;
+
+                // Step 2: assign
+                const assignRes = await fetch('/api/assign_fault', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_id: faultId, technician_name: best.name })
+                });
+                const assignData = await assignRes.json();
+                if (!assignData.success) throw new Error(assignData.error);
+
+                // Phase 2: show success state
+                banner.style.background = 'linear-gradient(135deg, #166534, #16a34a)';
+                document.getElementById('urgentAlertIcon').textContent = '✅';
+                document.getElementById('urgentAlertTitle').textContent =
+                    `הוקצה אוטומטית: ${best.name}`;
+                document.getElementById('urgentAlertBody').innerHTML =
+                    `אזור התקלה: <strong>${regionHe}</strong> | ` +
+                    `טכנאי נמצא באזור: <strong>${techRegionHe}</strong> | ` +
+                    `עומס נוכחי: ${best.open_faults} תקלות`;
+                document.getElementById('urgentAlertActions').innerHTML =
+                    `<button class="btn btn-outline-light btn-sm" onclick="showOverrideOptions(${faultId})">שנה</button>`;
+
+                await loadFaults();
+
+                // Auto-dismiss after 8 seconds
+                setTimeout(dismissUrgentAlert, 8000);
+
+            } catch (err) {
+                banner.style.background = 'linear-gradient(135deg, #7f1d1d, #991b1b)';
+                document.getElementById('urgentAlertIcon').textContent = '❌';
+                document.getElementById('urgentAlertTitle').textContent = 'שגיאה בהקצאה: ' + err.message;
+                document.getElementById('urgentAlertActions').innerHTML =
+                    `<button class="btn btn-warning btn-sm" onclick="autoAssignNearest(${faultId})">נסה שוב</button>`;
+            }
+        }
+
+        // Manual override: show ranked list in a simple dropdown inside the banner
+        async function showOverrideOptions(faultId) {
+            try {
+                const res = await fetch('/api/suggest_technician', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_id: faultId })
+                });
+                const data = await res.json();
+                if (!data.success) return;
+
+                const opts = data.ranked_technicians.map(t =>
+                    `<option value="${t.name}">${t.name} (${REGION_LABELS[t.current_region] || t.current_region}, ${t.open_faults} תקלות)</option>`
+                ).join('');
+
+                document.getElementById('urgentAlertActions').innerHTML = `
+                    <select class="form-select form-select-sm d-inline-block" style="width:auto; color:#000;"
+                        onchange="if(this.value) manualAssign(${faultId}, this.value)">
+                        <option value="">בחר טכנאי...</option>
+                        ${opts}
+                    </select>
+                `;
+            } catch (e) { /* silent */ }
+        }
+
+        async function manualAssign(faultId, techName) {
+            const res = await fetch('/api/assign_fault', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fault_id: faultId, technician_name: techName })
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('urgentAlertTitle').textContent = `הוקצה ל-${techName}`;
+                document.getElementById('urgentAlertActions').innerHTML = '';
+                await loadFaults();
+                setTimeout(dismissUrgentAlert, 5000);
+            }
+        }
+
+        // Hook into loadFaults to run detection after each refresh
+        const _origLoadFaults = loadFaults;
+        loadFaults = async function() {
+            await _origLoadFaults();
+            checkForNewUrgentFaults(allFaults);
+        };
+
+        // Start auto-refresh after DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Small delay so initial load finishes first
+            setTimeout(startAutoRefresh, 2000);
+        });
     </script>
 </body>
 </html>

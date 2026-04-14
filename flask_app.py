@@ -120,6 +120,32 @@ def get_school_region(school_name):
     return SCHOOL_MAPPING.get(school_name, 'Unknown')
 
 # ============================================================================
+# TECHNICIANS LIST
+# ============================================================================
+# Edit this list to match your real technicians and their home base region
+
+TECHNICIANS = [
+    {'id': 1, 'name': 'טכנאי 1', 'home_region': 'Center'},
+    {'id': 2, 'name': 'טכנאי 2', 'home_region': 'Jerusalem'},
+    {'id': 3, 'name': 'טכנאי 3', 'home_region': 'North'},
+    {'id': 4, 'name': 'טכנאי 4', 'home_region': 'South'},
+]
+
+# ============================================================================
+# REGION PROXIMITY MATRIX
+# Lower score = closer. Used to find the nearest technician to a fault.
+# ============================================================================
+
+REGION_PROXIMITY = {
+    'South':     {'South': 0, 'Lowland': 1, 'Jerusalem': 2, 'Center': 3, 'North': 4},
+    'Jerusalem': {'Jerusalem': 0, 'Center': 1, 'South': 2, 'Lowland': 2, 'North': 3},
+    'Center':    {'Center': 0, 'Jerusalem': 1, 'Lowland': 1, 'North': 2, 'South': 3},
+    'North':     {'North': 0, 'Center': 1, 'Lowland': 2, 'Jerusalem': 2, 'South': 4},
+    'Lowland':   {'Lowland': 0, 'Center': 1, 'North': 1, 'Jerusalem': 2, 'South': 2},
+    'Unknown':   {'South': 2, 'Jerusalem': 2, 'Center': 2, 'North': 2, 'Lowland': 2},
+}
+
+# ============================================================================
 # SEVERITY MAPPING
 # ============================================================================
 
@@ -562,6 +588,149 @@ def run_scheduling_algorithm(faults_df, num_technicians):
         school_metrics.loc[idx, 'assigned'] = True
 
     return assignments
+
+@app.route('/api/technicians', methods=['GET'])
+def get_technicians():
+    """Return technicians list with current workload per region"""
+    session = SqliteSession()
+    try:
+        # Count open faults per assigned technician
+        open_faults = session.query(Fault).filter(
+            Fault.status == 'Open',
+            Fault.assigned_technician != None
+        ).all()
+
+        workload = {}  # tech_name -> {count, regions}
+        for fault in open_faults:
+            tech = fault.assigned_technician
+            if tech not in workload:
+                workload[tech] = {'count': 0, 'regions': []}
+            workload[tech]['count'] += 1
+            if GLOBAL_STUDENTS_DF is not None:
+                si = GLOBAL_STUDENTS_DF[GLOBAL_STUDENTS_DF['id'] == fault.student_id_ext]
+                if not si.empty:
+                    sn = si.iloc[0].get('school_name', 'Unknown')
+                    workload[tech]['regions'].append(SCHOOL_MAPPING.get(sn, 'Unknown'))
+
+        result = []
+        for tech in TECHNICIANS:
+            tech_name = tech['name']
+            wl = workload.get(tech_name, {'count': 0, 'regions': []})
+            # Determine current region: most frequent region in open assignments, else home
+            if wl['regions']:
+                from collections import Counter
+                current_region = Counter(wl['regions']).most_common(1)[0][0]
+            else:
+                current_region = tech['home_region']
+            result.append({
+                'id': tech['id'],
+                'name': tech_name,
+                'home_region': tech['home_region'],
+                'current_region': current_region,
+                'open_faults': wl['count'],
+            })
+
+        return jsonify({'success': True, 'technicians': result})
+    finally:
+        session.close()
+
+
+@app.route('/api/suggest_technician', methods=['POST'])
+def suggest_technician():
+    """Rank all technicians by proximity to the fault's region + workload"""
+    data = request.get_json()
+    fault_id = data.get('fault_id')
+
+    session = SqliteSession()
+    try:
+        fault = session.query(Fault).filter(Fault.id == fault_id).first()
+        if not fault:
+            return jsonify({'success': False, 'error': 'Fault not found'}), 404
+
+        # Get fault region
+        fault_region = 'Unknown'
+        if GLOBAL_STUDENTS_DF is not None:
+            si = GLOBAL_STUDENTS_DF[GLOBAL_STUDENTS_DF['id'] == fault.student_id_ext]
+            if not si.empty:
+                sn = si.iloc[0].get('school_name', 'Unknown')
+                fault_region = SCHOOL_MAPPING.get(sn, 'Unknown')
+
+        # Get technician workloads
+        open_faults = session.query(Fault).filter(
+            Fault.status == 'Open',
+            Fault.assigned_technician != None
+        ).all()
+        workload = {}
+        for of in open_faults:
+            tech = of.assigned_technician
+            if tech not in workload:
+                workload[tech] = {'count': 0, 'regions': []}
+            workload[tech]['count'] += 1
+            if GLOBAL_STUDENTS_DF is not None:
+                si2 = GLOBAL_STUDENTS_DF[GLOBAL_STUDENTS_DF['id'] == of.student_id_ext]
+                if not si2.empty:
+                    sn2 = si2.iloc[0].get('school_name', 'Unknown')
+                    workload[tech]['regions'].append(SCHOOL_MAPPING.get(sn2, 'Unknown'))
+
+        prox = REGION_PROXIMITY.get(fault_region, {k: 2 for k in ['South','Jerusalem','Center','North','Lowland']})
+
+        ranked = []
+        for tech in TECHNICIANS:
+            tech_name = tech['name']
+            wl = workload.get(tech_name, {'count': 0, 'regions': []})
+            if wl['regions']:
+                from collections import Counter
+                current_region = Counter(wl['regions']).most_common(1)[0][0]
+            else:
+                current_region = tech['home_region']
+
+            dist = prox.get(current_region, 3)
+            # Score: distance * 3 + open fault count (lower = better)
+            score = dist * 3 + wl['count']
+
+            ranked.append({
+                'id': tech['id'],
+                'name': tech_name,
+                'current_region': current_region,
+                'open_faults': wl['count'],
+                'distance_score': dist,
+                'total_score': score,
+            })
+
+        ranked.sort(key=lambda x: x['total_score'])
+
+        return jsonify({
+            'success': True,
+            'fault_region': fault_region,
+            'ranked_technicians': ranked,
+        })
+    finally:
+        session.close()
+
+
+@app.route('/api/assign_fault', methods=['POST'])
+def assign_fault():
+    """Assign a technician to a specific fault"""
+    data = request.get_json()
+    fault_id = data.get('fault_id')
+    technician_name = data.get('technician_name')
+
+    session = SqliteSession()
+    try:
+        fault = session.query(Fault).filter(Fault.id == fault_id).first()
+        if not fault:
+            return jsonify({'success': False, 'error': 'Fault not found'}), 404
+
+        fault.assigned_technician = technician_name
+        session.commit()
+
+        return jsonify({'success': True, 'message': f'התקלה הוקצתה ל-{technician_name}'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
 
 @app.route('/api/schedule', methods=['POST'])
 def schedule_technicians():
