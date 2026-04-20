@@ -412,7 +412,61 @@
             background: #d1fae5;
             color: #065f46;
         }
-        
+
+        .locker-info-card {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 2px solid #3b82f6;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+        }
+        .locker-info-card.faulty {
+            background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+            border-color: #ef4444;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+        }
+        .locker-info-card.warning {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            border-color: #f59e0b;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+        }
+        .locker-info-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        .locker-info-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #1e40af;
+        }
+        .locker-info-card.faulty .locker-info-title { color: #991b1b; }
+        .locker-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.75rem 1.25rem;
+        }
+        .locker-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.125rem;
+        }
+        .locker-info-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .locker-info-value {
+            font-size: 1.0625rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
         .badge-closed {
             background: #e5e7eb;
             color: #374151;
@@ -631,8 +685,23 @@
             align-items: center;
             justify-content: center;
             min-height: 70px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
-        
+
+        .stats-card-clickable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .stats-card-clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        .stats-card-active {
+            outline: 3px solid #2563eb;
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        }
+
         .stats-number {
             font-size: clamp(1rem, 4vw, 1.75rem);
             font-weight: bold;
@@ -785,20 +854,25 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Locker number -->
+                                <!-- Locker auto-loaded from student -->
                                 <div class="row mb-3">
-                                    <div class="col-12 col-md-4 mb-3 mb-md-0">
-                                        <label for="lockerId" class="form-label fw-bold">
-                                            <i class="bi bi-lock"></i> מספר לוקר
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-lock"></i> פרטי לוקר
                                         </label>
-                                        <input type="text" class="form-control form-control-lg" id="lockerId"
-                                               placeholder="לדוגמה: A-12">
+                                        <div id="lockerInfoBox" class="locker-info-card" style="display:none;">
+                                            <div id="lockerInfoDetails"></div>
+                                        </div>
+                                        <div id="manualLockerIdWrap">
+                                            <input type="text" class="form-control" id="lockerId"
+                                                   placeholder="לדוגמה: L-0042 (יתמלא אוטומטית אחרי בחירת תלמיד)">
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Locker type + Fault type -->
                                 <div class="row mb-3">
-                                    <div class="col-12 mb-3">
+                                    <div class="col-12 mb-3" id="manualLockerTypeWrap">
                                         <label class="form-label fw-bold">
                                             <i class="bi bi-gear"></i> סוג הלוקר
                                         </label>
@@ -881,7 +955,6 @@
                                             <select class="form-select" id="statusFilter" onchange="filterFaults()">
                                                 <option value="all">הכל</option>
                                                 <option value="Open" selected>פתוחות</option>
-                                                <option value="Resolved">נפתרו</option>
                                                 <option value="Closed">סגורות</option>
                                             </select>
                                         </div>
@@ -894,9 +967,22 @@
                                             </select>
                                         </div>
                                         <div class="col-12">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">מיון</label>
+                                            <select class="form-select" id="sortSelect" onchange="applySortSelect()">
+                                                <option value="created_desc" selected>תאריך — מהחדש לישן</option>
+                                                <option value="created_asc">תאריך — מהישן לחדש</option>
+                                                <option value="student_asc">שם תלמיד (א–ת)</option>
+                                                <option value="school_asc">בית ספר (א–ת)</option>
+                                                <option value="severity_desc">חומרה — גבוהה לנמוכה</option>
+                                                <option value="urgent_first">דחיפות (ספרים נעולים קודם)</option>
+                                                <option value="recurring_first">תקלות חוזרות קודם</option>
+                                                <option value="fault_type_asc">סוג תקלה (א–ת)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
                                             <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חיפוש</label>
-                                            <input type="text" class="form-control" id="searchInput" 
-                                                   placeholder="חפש לפי שם תלמיד או בית ספר..." 
+                                            <input type="text" class="form-control" id="searchInput"
+                                                   placeholder="חפש לפי שם תלמיד או בית ספר..."
                                                    onkeyup="filterFaults()">
                                         </div>
                                     </div>
@@ -1175,6 +1261,7 @@
                             input.value = `${student.fname} ${student.lname} | ת.ז: ${student.studentId}`;
                             dropdown.style.display = 'none';
                             showStudentInfo(student);
+                            loadStudentLocker(student.id);
                         });
                     });
                 }
@@ -1194,9 +1281,107 @@
                 <strong>שם:</strong> ${student.fname} ${student.lname}<br>
                 <strong>ת.ז:</strong> ${student.studentId}<br>
                 <strong>כיתה:</strong> ${student.class || ''}'${student.classNumber || ''}<br>
+                <strong>טלפון הורה:</strong> ${student.parentPhone || '—'}<br>
                 <strong>בית ספר:</strong> ${student.school_name || 'לא ידוע'}
             `;
             document.getElementById('studentInfo').style.display = 'block';
+        }
+
+        async function loadStudentLocker(studentId) {
+            const lockerIdInput = document.getElementById('lockerId');
+            const lockerInfoBox = document.getElementById('lockerInfoBox');
+            const lockerInfoDetails = document.getElementById('lockerInfoDetails');
+            const mechanicalRadio = document.getElementById('lockerMechanical');
+            const digitalRadio = document.getElementById('lockerDigital');
+            const manualIdWrap = document.getElementById('manualLockerIdWrap');
+            const manualTypeWrap = document.getElementById('manualLockerTypeWrap');
+
+            // Reset state
+            lockerIdInput.value = '';
+            mechanicalRadio.checked = false;
+            digitalRadio.checked = false;
+            mechanicalRadio.disabled = false;
+            digitalRadio.disabled = false;
+            lockerIdInput.readOnly = false;
+            manualIdWrap.style.display = '';
+            manualTypeWrap.style.display = '';
+            lockerInfoBox.style.display = 'none';
+            updateFaultTypeOptions();
+
+            try {
+                const res = await fetch(`/api/student_locker/${studentId}`);
+                const data = await res.json();
+                if (!data.locker) {
+                    lockerInfoBox.className = 'locker-info-card warning';
+                    lockerInfoDetails.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:0.5rem; color:#92400e; font-weight:700;">
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size:1.25rem;"></i>
+                            לתלמיד זה לא משויך לוקר — הזן את פרטי הלוקר ידנית
+                        </div>
+                    `;
+                    lockerInfoBox.style.display = 'block';
+                    return;
+                }
+                const loc = data.locker;
+                const typeLabel = loc.lock_type === 'digital' ? '💻 דיגיטלי' : '🔧 מכני';
+                const statusLabels = {available: 'זמין', in_use: 'בשימוש', faulty: 'תקול'};
+                const statusBadge = loc.status === 'faulty' ? 'bg-danger' : (loc.status === 'in_use' ? 'bg-primary' : 'bg-success');
+                const cardClass = loc.status === 'faulty' ? 'locker-info-card faulty' : 'locker-info-card';
+
+                lockerInfoBox.className = cardClass;
+                lockerInfoDetails.innerHTML = `
+                    <div class="locker-info-header">
+                        <div class="locker-info-title">
+                            <i class="bi bi-lock-fill"></i> לוקר ${loc.locker_id}
+                        </div>
+                        <span class="badge ${statusBadge}" style="font-size:0.85rem; padding:0.4rem 0.75rem;">
+                            ${statusLabels[loc.status] || loc.status}
+                        </span>
+                    </div>
+                    <div class="locker-info-grid">
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">ארון</span>
+                            <span class="locker-info-value">${loc.cabinet_name}</span>
+                        </div>
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">תא</span>
+                            <span class="locker-info-value">${loc.cell_number}</span>
+                        </div>
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">סוג נעילה</span>
+                            <span class="locker-info-value">${typeLabel}</span>
+                        </div>
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">קוד תלמיד</span>
+                            <span class="locker-info-value">${loc.student_code || '—'}</span>
+                        </div>
+                        ${loc.lock_type === 'digital' ? `
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">קוד מאסטר</span>
+                            <span class="locker-info-value">${loc.master_code || '—'}</span>
+                        </div>` : `
+                        <div class="locker-info-item">
+                            <span class="locker-info-label">מספר מנעול</span>
+                            <span class="locker-info-value">${loc.lock_number || '—'}</span>
+                        </div>`}
+                    </div>
+                `;
+                lockerInfoBox.style.display = 'block';
+
+                // Auto-fill hidden input + hide the manual UI entirely
+                lockerIdInput.value = loc.locker_id;
+                lockerIdInput.readOnly = true;
+                manualIdWrap.style.display = 'none';
+                manualTypeWrap.style.display = 'none';
+                if (loc.lock_type === 'mechanical') {
+                    mechanicalRadio.checked = true;
+                } else {
+                    digitalRadio.checked = true;
+                }
+                updateFaultTypeOptions();
+            } catch (err) {
+                console.error('Error loading student locker:', err);
+            }
         }
         
         async function loadFaults() {
@@ -1391,14 +1576,12 @@
                 return;
             }
             
-            // Apply sorting: default alphabetical by student name, or active column sort
+            // Apply sorting: column-click wins, otherwise use the active preset from the dropdown
             let displayArray = [...filteredFaults];
             if (sortColumn) {
                 displayArray = sortFaultsArray(displayArray);
-            } else {
-                displayArray.sort((a, b) =>
-                    (a.student_name || '').localeCompare(b.student_name || '', 'he')
-                );
+            } else if (activeSortPreset && SORT_PRESETS[activeSortPreset]) {
+                displayArray.sort(SORT_PRESETS[activeSortPreset]);
             }
             
             tbody.innerHTML = displayArray.map(fault => `
@@ -1427,15 +1610,11 @@
                             <button class="btn btn-primary" onclick="showFaultDetailsModal(${fault.id})" title="פרטים">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            ${fault.status === 'Open' ? 
-                                `<button class="btn btn-success" onclick="updateFaultStatus(${fault.id}, 'Resolved')" title="סמן כנפתר">
+                            ${fault.status === 'Open' ?
+                                `<button class="btn btn-success" onclick="updateFaultStatus(${fault.id}, 'Closed')" title="סגור תקלה">
                                     <i class="bi bi-check"></i>
                                 </button>` : ''}
-                            ${fault.status === 'Resolved' ? 
-                                `<button class="btn btn-secondary" onclick="updateFaultStatus(${fault.id}, 'Closed')" title="סגור">
-                                    <i class="bi bi-lock"></i>
-                                </button>` : ''}
-                            ${fault.status !== 'Open' ? 
+                            ${fault.status !== 'Open' ?
                                 `<button class="btn btn-warning" onclick="updateFaultStatus(${fault.id}, 'Open')" title="פתח מחדש">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>` : ''}
@@ -1482,37 +1661,53 @@
         }
         
         function updateFaultsStats() {
-            const total = filteredFaults.length;
-            const urgent = filteredFaults.filter(f => (f.books_stuck || f.is_urgent) && f.status === 'Open').length;
-            const open = filteredFaults.filter(f => f.status === 'Open').length;
-            const resolved = filteredFaults.filter(f => f.status === 'Resolved').length;
-            
+            // Use full dataset — stats are a global dashboard, not tied to current filter.
+            const total = allFaults.length;
+            const urgent = allFaults.filter(f => (f.books_stuck || f.is_urgent) && f.status === 'Open').length;
+            const open = allFaults.filter(f => f.status === 'Open').length;
+            const closed = allFaults.filter(f => f.status === 'Closed').length;
+
+            const currentStatus = document.getElementById('statusFilter').value;
+            const currentUrgent = document.getElementById('urgentFilter').value;
+            const active = (status, urgent) =>
+                currentStatus === status && currentUrgent === urgent ? ' stats-card-active' : '';
+
             document.getElementById('faultsStats').innerHTML = `
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card text-center" style="background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border: 2px solid #ef4444;">
+                    <div class="stats-card stats-card-clickable text-center${active('Open', 'all')}" style="background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border: 2px solid #ef4444;"
+                         onclick="applyStatsFilter('Open', 'all')">
                         <div class="stats-number" style="color: #dc2626;">${open}</div>
                         <div class="stats-label" style="color: #991b1b; font-weight: 700;">תקלות פתוחות</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card text-center">
+                    <div class="stats-card stats-card-clickable text-center${active('Open', 'yes')}"
+                         onclick="applyStatsFilter('Open', 'yes')">
                         <div class="stats-number text-danger">${urgent}</div>
                         <div class="stats-label">ספרים נעולים</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card text-center">
-                        <div class="stats-number text-success">${resolved}</div>
-                        <div class="stats-label">נפתרו</div>
+                    <div class="stats-card stats-card-clickable text-center${active('Closed', 'all')}"
+                         onclick="applyStatsFilter('Closed', 'all')">
+                        <div class="stats-number text-success">${closed}</div>
+                        <div class="stats-label">סגורות</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3 mb-2 mb-md-0">
-                    <div class="stats-card text-center">
+                    <div class="stats-card stats-card-clickable text-center${active('all', 'all')}"
+                         onclick="applyStatsFilter('all', 'all')">
                         <div class="stats-number">${total}</div>
                         <div class="stats-label">סה"כ תקלות</div>
                     </div>
                 </div>
             `;
+        }
+
+        function applyStatsFilter(status, urgent) {
+            document.getElementById('statusFilter').value = status;
+            document.getElementById('urgentFilter').value = urgent;
+            filterFaults();
         }
         
         function updateRegionChart() {
@@ -1648,15 +1843,53 @@
                 sortColumn = column;
                 sortDirection = 'asc';
             }
-            
+
             // Update header classes
             document.querySelectorAll('.sortable-header').forEach(header => {
                 header.classList.remove('sorted-asc', 'sorted-desc');
             });
-            
+
             event.target.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
-            
-            // Redisplay with new sorting
+
+            // Clear the sort dropdown so it doesn't look misleading
+            const sortSel = document.getElementById('sortSelect');
+            if (sortSel) sortSel.value = '';
+
+            displayFaults();
+        }
+
+        // Sort presets used by the "מיון" dropdown — each returns a comparator (a, b).
+        const SORT_PRESETS = {
+            created_desc: (a, b) => new Date(b.created_at) - new Date(a.created_at),
+            created_asc:  (a, b) => new Date(a.created_at) - new Date(b.created_at),
+            student_asc:  (a, b) => (a.student_name || '').localeCompare(b.student_name || '', 'he'),
+            school_asc:   (a, b) => (a.school_name || '').localeCompare(b.school_name || '', 'he'),
+            severity_desc:(a, b) => (b.severity || 0) - (a.severity || 0),
+            urgent_first: (a, b) => {
+                const ua = (a.books_stuck || a.is_urgent) ? 1 : 0;
+                const ub = (b.books_stuck || b.is_urgent) ? 1 : 0;
+                if (ua !== ub) return ub - ua;
+                return new Date(b.created_at) - new Date(a.created_at);
+            },
+            recurring_first: (a, b) => {
+                const ra = a.is_recurring ? 1 : 0;
+                const rb = b.is_recurring ? 1 : 0;
+                if (ra !== rb) return rb - ra;
+                return new Date(b.created_at) - new Date(a.created_at);
+            },
+            fault_type_asc: (a, b) => (a.fault_type || '').localeCompare(b.fault_type || '', 'he'),
+        };
+
+        let activeSortPreset = 'created_desc';
+
+        function applySortSelect() {
+            const sel = document.getElementById('sortSelect');
+            activeSortPreset = sel.value;
+            // Drop the column-click sort so the preset wins
+            sortColumn = null;
+            document.querySelectorAll('.sortable-header').forEach(h => {
+                h.classList.remove('sorted-asc', 'sorted-desc');
+            });
             displayFaults();
         }
         
@@ -1690,7 +1923,7 @@
                         valueB = (b.books_stuck || b.is_urgent) ? 1 : 0;
                         break;
                     case 'status':
-                        const statusOrder = {'Open': 1, 'Resolved': 2, 'Closed': 3};
+                        const statusOrder = {'Open': 1, 'Closed': 2};
                         valueA = statusOrder[a.status] || 999;
                         valueB = statusOrder[b.status] || 999;
                         break;
@@ -1816,8 +2049,7 @@
         function getStatusBadge(status) {
             const badges = {
                 'Open': '<span class="badge bg-warning">פתוחה</span>',
-                'Resolved': '<span class="badge bg-success">נפתרה</span>',
-                'Closed': '<span class="badge bg-secondary">סגורה</span>'
+                'Closed': '<span class="badge bg-success">סגורה</span>'
             };
             return badges[status] || badges['Open'];
         }
@@ -1895,8 +2127,7 @@
                             </label>
                             <select class="form-select form-select-lg" id="faultStatus">
                                 <option value="Open" ${fault.status === 'Open' ? 'selected' : ''}>פתוחה</option>
-                                <option value="Resolved" ${fault.status === 'Resolved' ? 'selected' : ''}>נפתרה ✓</option>
-                                <option value="Closed" ${fault.status === 'Closed' ? 'selected' : ''}>סגורה</option>
+                                <option value="Closed" ${fault.status === 'Closed' ? 'selected' : ''}>סגורה ✓</option>
                             </select>
                         </div>
                     </div>
@@ -1985,7 +2216,7 @@
                         allFaults[faultIndex].status = status;
                         allFaults[faultIndex].technician_notes = notes;
                         allFaults[faultIndex].assigned_technician = `Technician ${currentTechnicianId}`;
-                        if (status === 'Resolved' || status === 'Closed') {
+                        if (status === 'Closed') {
                             allFaults[faultIndex].resolved_at = result.fault.resolved_at;
                         }
                     }
@@ -2002,11 +2233,8 @@
                                 if (status === 'Open') {
                                     statusBadge.className += ' bg-warning';
                                     statusBadge.textContent = 'פתוחה';
-                                } else if (status === 'Resolved') {
-                                    statusBadge.className += ' bg-success';
-                                    statusBadge.textContent = 'נפתרה';
                                 } else if (status === 'Closed') {
-                                    statusBadge.className += ' bg-secondary';
+                                    statusBadge.className += ' bg-success';
                                     statusBadge.textContent = 'סגורה';
                                 }
                             }
@@ -2034,9 +2262,46 @@
                 alert('תקלה לא נמצאה');
                 return;
             }
-            
+
+            // Fetch locker details — prefer the fault's explicit locker_id, fall back
+            // to the student's currently-assigned locker so older faults still show info.
+            let locker = null;
+            let lockerIsFallback = false;
+            if (fault.locker_id) {
+                try {
+                    const r = await fetch(`/api/locker/${fault.locker_id}`);
+                    const d = await r.json();
+                    locker = d.locker;
+                } catch (e) { console.error('locker fetch failed', e); }
+            }
+            if (!locker && fault.student_id_ext) {
+                try {
+                    const r = await fetch(`/api/student_locker/${fault.student_id_ext}`);
+                    const d = await r.json();
+                    if (d.locker) { locker = d.locker; lockerIsFallback = true; }
+                } catch (e) { console.error('student locker fetch failed', e); }
+            }
+
             const modalBody = document.getElementById('faultDetailsBody');
-            
+
+            const lockerBlock = locker ? `
+                <div class="mt-3">
+                    <h6>
+                        <i class="bi bi-lock-fill"></i> פרטי הלוקר (${locker.locker_id})
+                        ${lockerIsFallback ? '<span class="badge bg-secondary ms-2" style="font-size:0.7rem;">מהשיוך הנוכחי של התלמיד</span>' : ''}
+                    </h6>
+                    <table class="table table-sm mb-0">
+                        <tr><th style="width:35%;">ארון:</th><td><strong>${locker.cabinet_name}</strong></td></tr>
+                        <tr><th>תא:</th><td><strong>${locker.cell_number}</strong></td></tr>
+                        <tr><th>סוג נעילה:</th><td>${locker.lock_type === 'digital' ? '💻 דיגיטלי' : '🔧 מכני'}</td></tr>
+                        <tr><th>קוד תלמיד:</th><td><strong>${locker.student_code || '—'}</strong></td></tr>
+                        ${locker.lock_type === 'digital'
+                            ? `<tr><th>קוד מאסטר:</th><td><strong>${locker.master_code || '—'}</strong></td></tr>`
+                            : `<tr><th>מספר מנעול:</th><td><strong>${locker.lock_number || '—'}</strong></td></tr>`}
+                    </table>
+                </div>
+            ` : '';
+
             modalBody.innerHTML = `
                 <div class="row">
                     <div class="col-md-6">
@@ -2044,6 +2309,7 @@
                         <table class="table table-sm">
                             <tr><th>שם:</th><td>${fault.student_name || 'לא ידוע'}</td></tr>
                             <tr><th>ת.ז:</th><td>${fault.studentId || 'לא ידוע'}</td></tr>
+                            <tr><th>טלפון הורה:</th><td>${fault.parentPhone || '—'}</td></tr>
                             <tr><th>בית ספר:</th><td>${fault.school_name || 'לא ידוע'}</td></tr>
                         </table>
                     </div>
@@ -2060,7 +2326,9 @@
                         </table>
                     </div>
                 </div>
-                
+
+                ${lockerBlock}
+
                 <hr>
                 
                 ${fault.is_recurring ? `
@@ -2074,7 +2342,6 @@
                     <label class="form-label fw-bold"><i class="bi bi-gear"></i> סטטוס</label>
                     <select class="form-select" id="modalFaultStatus">
                         <option value="Open" ${fault.status === 'Open' ? 'selected' : ''}>פתוחה</option>
-                        <option value="Resolved" ${fault.status === 'Resolved' ? 'selected' : ''}>נפתרה</option>
                         <option value="Closed" ${fault.status === 'Closed' ? 'selected' : ''}>סגורה</option>
                     </select>
                 </div>
@@ -2146,7 +2413,6 @@
         function getStatusLabel(status) {
             const labels = {
                 'Open': 'פתוחה',
-                'Resolved': 'נפתרה',
                 'Closed': 'סגורה'
             };
             return labels[status] || status;

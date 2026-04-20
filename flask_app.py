@@ -39,6 +39,39 @@ Base = declarative_base()
 # ============================================================================
 
 GLOBAL_STUDENTS_DF = None  # Will be loaded on startup
+LOCKER_BY_STUDENT = {}  # student_id -> locker dict (loaded on startup)
+LOCKER_BY_ID = {}  # locker_id -> locker dict
+
+def _locker_to_dict(l):
+    return {
+        'locker_id': l.locker_id,
+        'school_name': l.school_name,
+        'cabinet_name': l.cabinet_name,
+        'cell_number': l.cell_number,
+        'lock_type': l.lock_type,
+        'status': l.status,
+        'student_code': l.student_code,
+        'master_code': l.master_code,
+        'lock_number': l.lock_number,
+    }
+
+
+def load_lockers_to_cache():
+    """Index lockers by current_student_id and locker_id for O(1) lookup."""
+    global LOCKER_BY_STUDENT, LOCKER_BY_ID
+    LOCKER_BY_STUDENT = {}
+    LOCKER_BY_ID = {}
+    session = SqliteSession()
+    try:
+        for l in session.query(Locker).all():
+            d = _locker_to_dict(l)
+            LOCKER_BY_ID[l.locker_id] = d
+            if l.current_student_id:
+                LOCKER_BY_STUDENT[l.current_student_id] = d
+        print(f"✅ Indexed {len(LOCKER_BY_STUDENT)} lockers by student, {len(LOCKER_BY_ID)} by locker_id")
+    finally:
+        session.close()
+
 
 def load_students_to_cache():
     """Load all students from local SQLite into global cache (RAM)"""
@@ -204,6 +237,25 @@ class Fault(Base):
     assigned_technician = Column(String, nullable=True)
     technician_notes = Column(String, nullable=True)
 
+
+class Locker(Base):
+    __tablename__ = 'lockers'
+
+    locker_id = Column(String, primary_key=True)
+    school_name = Column(String, nullable=False)
+    cabinet_name = Column(String, nullable=False)
+    cell_number = Column(String, nullable=False)
+    lock_type = Column(String, nullable=False)  # 'digital' | 'mechanical'
+    student_code = Column(String, nullable=True)
+    master_code = Column(String, nullable=True)
+    lock_number = Column(String, nullable=True)
+    current_student_id = Column(String, nullable=True)
+    status = Column(String, default='available')  # 'available' | 'in_use' | 'faulty'
+    academic_year = Column(String, nullable=True)
+    assigned_at = Column(DateTime, nullable=True)
+    notes = Column(String, nullable=True)
+
+
 # Create tables
 Base.metadata.create_all(sqlite_engine)
 
@@ -256,8 +308,10 @@ def get_faults():
                 'is_recurring': getattr(fault, 'is_recurring', False),  # Safe access for old DB records
                 'status': fault.status,
                 'description': fault.description,
-                'created_at': fault.created_at.isoformat() if fault.created_at else None,
-                'resolved_at': fault.resolved_at.isoformat() if fault.resolved_at else None,
+                # Mark the naive UTC datetimes with 'Z' so the browser converts them
+                # to local (Israel) time instead of treating them as local.
+                'created_at': (fault.created_at.isoformat() + 'Z') if fault.created_at else None,
+                'resolved_at': (fault.resolved_at.isoformat() + 'Z') if fault.resolved_at else None,
                 'assigned_technician': fault.assigned_technician,
                 'technician_notes': getattr(fault, 'technician_notes', None)  # Safe access for new column
             }
@@ -269,6 +323,7 @@ def get_faults():
                     student = student_info.iloc[0]
                     fault_dict['student_name'] = f"{student['fname']} {student['lname']}"
                     fault_dict['studentId'] = student['studentId']
+                    fault_dict['parentPhone'] = student.get('parentPhone', None)
                     school_name = student.get('school_name', 'N/A')
                     fault_dict['school_name'] = school_name
                     # Add region based on school mapping
@@ -299,13 +354,13 @@ def create_fault():
         
         # ========================================================================
         # AUTO-DETECT RECURRING FAULT
-        # Check if this student had the same fault type before (Resolved/Closed)
+        # Check if this student had the same fault type before (Closed)
         # ========================================================================
         is_recurring = False
         previous_faults = session.query(Fault).filter(
             Fault.student_id_ext == data['student_id_ext'],
             Fault.fault_type == data['fault_type'],
-            Fault.status.in_(['Resolved', 'Closed'])
+            Fault.status == 'Closed'
         ).first()
         
         if previous_faults:
@@ -353,8 +408,8 @@ def update_status():
         
         new_status = data['status']
         fault.status = new_status
-        
-        if new_status == 'Resolved' or new_status == 'Closed':
+
+        if new_status == 'Closed':
             if not fault.resolved_at:
                 fault.resolved_at = datetime.utcnow()
         elif new_status == 'Open':
@@ -392,7 +447,7 @@ def update_fault_with_notes():
             new_status = data['status']
             fault.status = new_status
             
-            if new_status in ['Resolved', 'Closed']:
+            if new_status == 'Closed':
                 if not fault.resolved_at:
                     fault.resolved_at = datetime.utcnow()
             elif new_status == 'Open':
@@ -415,7 +470,7 @@ def update_fault_with_notes():
                 'id': fault.id,
                 'status': fault.status,
                 'technician_notes': fault.technician_notes,
-                'resolved_at': fault.resolved_at.isoformat() if fault.resolved_at else None
+                'resolved_at': (fault.resolved_at.isoformat() + 'Z') if fault.resolved_at else None
             }
         })
     except Exception as e:
@@ -821,6 +876,24 @@ def schedule_technicians():
     finally:
         session.close()
 
+@app.route('/api/student_locker/<student_id>', methods=['GET'])
+def get_student_locker(student_id):
+    """Return the locker assigned to the given student (from RAM index)."""
+    locker = LOCKER_BY_STUDENT.get(str(student_id))
+    if not locker:
+        return jsonify({'locker': None})
+    return jsonify({'locker': locker})
+
+
+@app.route('/api/locker/<locker_id>', methods=['GET'])
+def get_locker(locker_id):
+    """Return the locker by its ID (from RAM index)."""
+    locker = LOCKER_BY_ID.get(str(locker_id))
+    if not locker:
+        return jsonify({'locker': None})
+    return jsonify({'locker': locker})
+
+
 # ============================================================================
 # APPLICATION STARTUP
 # ============================================================================
@@ -828,5 +901,6 @@ def schedule_technicians():
 if __name__ == '__main__':
     # Load students into cache BEFORE starting the server
     load_students_to_cache()
+    load_lockers_to_cache()
     print("✅ Flask server ready")
     app.run(debug=True, host='0.0.0.0', port=5000)
