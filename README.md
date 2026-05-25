@@ -1,379 +1,152 @@
-# 🔧 מערכת ניהול תקלות לוקרים - Locker Faults System
+# 🔧 מערכת ניהול תקלות לוקרים — Locker Faults System
 
-מערכת מקצועית לניהול ודיווח תקלות בלוקרים של תלמידים, בנויה כ-**Single Page Application (SPA)** עם Flask Backend ו-HTML/Bootstrap Frontend.
+מערכת לניהול ודיווח תקלות בלוקרים של תלמידים. **SPA** עם Flask + Bootstrap RTL.
 
-## 🎯 תכונות מרכזיות
+## 🏗️ ארכיטקטורה
 
-### ⚡ ביצועים גבוהים
-- **Global Caching**: כל נתוני התלמידים נטענים ל-RAM בהפעלת השרת
-- **אין Latency**: אפס שאילתות למסד נתונים מרוחק בזמן עבודה
-- **מהיר פי 10-100** מהגרסה הקודמת
-
-### 📊 ניהול תקלות חכם
-- **דיווח תקלות** - טופס פשוט עם בחירת תלמיד מרשימה נשלפת
-- **ניהול מלא** - צפייה, סינון ועדכון סטטוס תקלות
-- **סיווג אוטומטי** - חומרה (1-5), דחיפות, ספרים תקועים
-- **Modal לפרטים** - צפייה ועריכה מלאה של כל תקלה
-
-### 🧮 אלגוריתם תזמון חכם לטכנאים
-חלוקת תקלות מאוזנת לפי **ציון עדיפות לכל בית ספר**:
+המערכת קוראת **בזמן אמת (read-only)** מה-DB של אתר אדון לוקר (Supabase Postgres) וכותבת תקלות ל-DB Postgres נפרד שלנו ב-Render.
 
 ```
-Priority Score = 0.35×N + 0.25×U + 0.25×T + 0.15×R
-
-N = מספר תקלות פתוחות בבית ספר
-U = תקלות דחופות (ספרים תקועים)
-T = סך חומרת התקלות
-R = תקלות שדווחו ב-24 שעות האחרונות
-
-תקלות דחופות → ציון 1000 (עדיפות מקסימלית)
+┌──────────────────────────────────┐         ┌──────────────────────────┐
+│  Adon Locker DB (Supabase)       │         │  Our DB (Render Postgres)│
+│  Students, Lockers, Schools...   │         │  Faults                  │
+│  ─── READ ONLY ───                │◄────────│                          │
+└──────────────────────────────────┘         └──────────────────────────┘
+        ▲                                              ▲
+        │ live SELECT                                  │ INSERT/UPDATE
+        │ (60s TTL cache)                              │
+        │                                              │
+        └─────────────────┬────────────────────────────┘
+                          │
+                  ┌───────────────┐
+                  │  Flask app    │
+                  │  + Google     │
+                  │    OAuth      │
+                  └───────────────┘
+                          ▲
+                          │ HTTPS
+                  ┌───────────────┐
+                  │  משתמשים      │
+                  │  (allowlisted)│
+                  └───────────────┘
 ```
 
-**Load Balancing**: כל בית ספר מוקצה לטכנאי עם העומס הנמוך ביותר - אין טכנאים פנויים בזמן שאחרים עמוסים!
+**שני חיבורי DB נפרדים** מנוהלים ב-[db.py](db.py):
+- `OUR_DATABASE_URL` — קריאה+כתיבה. טבלת `faults`.
+- `ADON_LOCKER_DATABASE_URL` — קריאה בלבד. תלמידים, לוקרים, ארונות, בתי ספר, מנעולים.
 
-### 🎨 ממשק משתמש מודרני
-- **Bootstrap 5** עם תמיכה מלאה ב-RTL (עברית)
-- **עיצוב מקצועי** - כרטיסים, גרדיאנטים, אנימציות
-- **ללא רענונים** - עדכונים דינמיים באמצעות JavaScript
-- **3 טאבים**: דיווח תקלה | ניהול תקלות | תזמון טכנאים
+מיפוי הסכמה המלא: [docs/schema_mapping.md](docs/schema_mapping.md).
 
-## 🗄️ ארכיטקטורה - Hybrid Database
+## 🚀 הרצה לוקאלית
 
-### PostgreSQL (Remote - Read Only)
-- נתוני תלמידים קיימים
-- **נטען ל-RAM בהפעלה** - אפס שאילתות בזמן ריצה
-
-### SQLite (Local - Read/Write)
-- כל נתוני התקלות
-- מהיר וללא תלות ברשת
-
-## 🚀 התקנה והפעלה
-
-### דרישות מקדימות
-```bash
-Python 3.7+
-```
-
-### שלב 1: התקנת תלויות
+### 1. תלויות
 ```bash
 pip install -r requirements.txt
 ```
 
-הקובץ `requirements.txt` כולל:
-- Flask
-- SQLAlchemy
-- pandas
-- psycopg2-binary
-- python-dotenv
-
-### שלב 2: הגדרת משתני סביבה
-צור קובץ `.env` (או שנה את `.env.example`):
-```env
-DATABASE_URL=postgresql://user:password@host/database
-```
-
-### שלב 3: הפעלת השרת
+### 2. הגדרת `.env`
 ```bash
-python flask_app.py
+cp .env.example .env
+# מלא: ADON_LOCKER_DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, ALLOWED_EMAILS, SECRET_KEY
 ```
 
-השרת יתחיל על `http://localhost:5000`
+לפרטי כל env var — ראי [.env.example](.env.example).
 
-**פלט צפוי:**
+צור Postgres מקומי ל-`OUR_DATABASE_URL` (אפשר Docker `postgres:16`), או תשתמשי ב-Render free tier.
+
+### 3. הרצה
+```bash
+FLASK_DEBUG=1 python flask_app.py
 ```
-🔄 Loading students from PostgreSQL into RAM cache...
-✅ Loaded 60 students into RAM cache
-✅ Flask server ready with cached students data
- * Running on http://127.0.0.1:5000
+פותח על `http://localhost:5000` → מפנה ל-Google login.
+
+## ☁️ פריסה ל-Render
+
+[`render.yaml`](render.yaml) הוא Blueprint שמגדיר אוטומטית:
+- Postgres מנוהל (ל-`faults`)
+- Web service עם gunicorn
+- Health check ב-`/api/health`
+- Env vars (חלקם דורשים מילוי ידני בדשבורד)
+
+**צעדים:**
+1. ב-Render: **New → Blueprint** → לחבר את הריפו → Render יקרא את `render.yaml` ויציע משאבים.
+2. בדשבורד למלא את ה-secrets שמסומנים `sync: false`:
+   - `ADON_LOCKER_DATABASE_URL` — מנתנאל (`?sslmode=require` בסוף!)
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — מ-Google Cloud Console
+   - `ALLOWED_EMAILS` — CSV של אימיילים מורשים
+3. ב-Google Cloud Console להוסיף את ה-callback URL של Render (`https://<app>.onrender.com/auth/callback`) ל-OAuth credentials.
+4. ב-Supabase של נתנאל לוודא שה-IPs של Render ב-allowlist (אם יש).
+
+## 🔌 API
+
+| Method | Endpoint | תיאור |
+|---|---|---|
+| GET | `/` | SPA |
+| GET | `/api/students` | רשימת תלמידים live מ-Adon Locker |
+| GET | `/api/student_locker/<id>` | לוקר התלמיד מ-Adon Locker |
+| GET | `/api/locker/<id>` | פרטי לוקר לפי ID |
+| GET | `/api/faults` | תקלות + נתוני תלמיד מועשרים |
+| POST | `/api/faults` | יצירת תקלה (זיהוי אוטו' של תקלה חוזרת) |
+| POST | `/api/faults/update` | עדכון סטטוס + הערות טכנאי |
+| POST | `/api/update_status` | עדכון סטטוס בלבד |
+| GET | `/api/technicians` | טכנאים + עומס נוכחי |
+| POST | `/api/suggest_technician` | דירוג טכנאים לתקלה ספציפית |
+| POST | `/api/assign_fault` | הקצאת טכנאי לתקלה |
+| POST | `/api/schedule` | אלגוריתם תזמון לכלל הטכנאים |
+| GET | `/api/health` | Liveness probe (ציבורי, ללא auth) |
+| GET | `/auth/login` | Google OAuth flow |
+| GET | `/auth/logout` | סיום סשן |
+
+## 🧮 אלגוריתם תזמון
+
+3 שלבים: Anchor → Region Exhaustion → Global Leftovers.
+
+לכל בית ספר:
 ```
+priority_score = 0.35×N + 0.25×U + 0.25×T + 0.15×R
+```
+- `N` = מספר תקלות (capped at 5)
+- `U` = ממוצע חומרה (1-5)
+- `T` = max age בימים (capped 1-5)
+- `R` = 5 אם יש תקלה חוזרת אצל אותו תלמיד, אחרת 1
+- **Override**: `books_stuck=True` → `priority_score = 10000`.
 
-### שלב 4: גישה לממשק
-פתח דפדפן: **http://localhost:5000**
+5 אזורים: Jerusalem, Center, North, South, Lowland. מיפוי `SCHOOL_MAPPING` ב-[flask_app.py](flask_app.py) — **דורש עדכון** מול שמות בתי הספר האמיתיים אצל נתנאל (ראי TODO ב-schema_mapping.md).
 
-## 📁 מבנה הפרויקט
+## 📂 מבנה הפרויקט
 
 ```
 loker-faults-system/
-├── flask_app.py              # שרת Flask עם API endpoints
+├── flask_app.py           # Routes + business logic
+├── db.py                  # Two engines + raw SQL queries (Adon Locker)
+├── auth.py                # Google OAuth + email allowlist
 ├── templates/
-│   └── index.html            # SPA Frontend (HTML/Bootstrap/JS)
-├── faults_system.db          # SQLite Database (נוצר אוטומטית)
-├── requirements.txt          # תלויות Python
-├── .env                      # משתני סביבה (לא ב-Git)
-├── .env.example              # דוגמה להגדרות
-├── .gitignore               # קבצים להתעלמות
-└── README.md                # התיעוד הזה
-```
-
-## 🔌 API Endpoints
-
-### Backend Routes (Flask)
-
-| Method | Endpoint | תיאור |
-|--------|----------|-------|
-| `GET` | `/` | מגיש את הדף הראשי (SPA) |
-| `GET` | `/api/students` | מחזיר רשימת תלמידים מה-Cache |
-| `GET` | `/api/faults` | מחזיר את כל התקלות עם מידע תלמידים |
-| `POST` | `/api/faults` | יצירת תקלה חדשה (זיהוי אוטומטי של תקלות חוזרות) |
-| `POST` | `/api/update_status` | עדכון סטטוס תקלה |
-| `POST` | `/api/schedule` | הרצת אלגוריתם תזמון טכנאים |
-
-### דוגמה - יצירת תקלה
-```javascript
-fetch('/api/faults', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-        student_id_ext: 'student-uuid',
-        fault_type: 'תקלה במנעול',
-        books_stuck: true,
-        description: 'המנעול לא נפתח'
-    })
-})
-```
-
-### דוגמה - תזמון טכנאים
-```javascript
-fetch('/api/schedule', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-        num_technicians: 3
-    })
-})
-```
-
-## 📊 מודל נתונים
-
-### טבלת Faults (SQLite)
-```python
-- id: מזהה ייחודי
-- student_id_ext: מפתח זר לתלמיד (PostgreSQL)
-- locker_id: מזהה לוקר
-- fault_type: סוג תקלה (תקלה במנעול, ספרים תקועים, וכו')
-- severity: חומרה (1-5)
-- books_stuck: ספרים תקועים? (Boolean)
-- is_urgent: דחוף? (Boolean)
-- is_recurring: תקלה חוזרת? (Boolean - זיהוי אוטומטי!)
-- status: סטטוס (Open/Resolved/Closed)
-- description: תיאור חופשי
-- created_at: תאריך יצירה
-- resolved_at: תאריך פתרון
-- assigned_technician: טכנאי מוקצה
-```
-
-**🔄 זיהוי אוטומטי של תקלות חוזרות:**  
-המערכת בודקת אוטומטית בעת יצירת תקלה חדשה האם לאותו תלמיד הייתה תקלה **מאותו סוג** בעבר (סטטוס Resolved/Closed). אם כן, התקלה מסומנת כ-`is_recurring=True` ומקבלת **משקל גבוה יותר** באלגוריתם התזמון (R=5 במקום R=1).
-
-### מיפוי בתי ספר לאזורים
-המפתח `SCHOOL_MAPPING` ב-`flask_app.py` קובע לאיזה אזור שייך כל בית ספר:
-- **Jerusalem** (ירושלים)
-- **Center** (מרכז)
-- **North** (צפון)
-- **South** (דרום)
-- **Lowland** (שפלה)
-
-## 🧮 אלגוריתם התזמון - 2-Stage Hybrid Model
-
-האלגוריתם משלב **ניקוד מתמטי** עם **חלוקה הוגנת** לאופטימום בין עומס עבודה ועדיפויות.
-
-### ⚠️ עדיפות דחיפות מוחלטת
-
-**תקלות דחופות (books_stuck = True) מקבלות עדיפות מוחלטת!**  
-כל תקלה עם ספרים תקועים מקבלת ציון **10,000** - כלומר תטופל **לפני כל התקלות האחרות** ללא קשר לפרמטרים אחרים.
-
-### שלב 1: חישוב ציון עדיפות לכל בית ספר
-
-לכל בית ספר עם תקלות פתוחות, מחושב ציון לפי הנוסחה:
-
-```
-Score = 0.35 × N + 0.25 × U + 0.25 × T + 0.15 × R
-```
-
-**כאשר:**
-- **N** = מספר התקלות הפתוחות בבית הספר
-- **U** = ממוצע חומרה (Severity) של התקלות (1-5)
-- **T** = ממוצע "גיל" התקלות בימים (מועד הפתיחה)
-- **R** = ממוצע ערך חזרתיות:
-  - `R = 5` לתקלה חוזרת (זוהתה אוטומטית)
-  - `R = 1` לתקלה רגילה
-
-**⚠️ Override:**  
-אם יש **ספרים תקועים** (`books_stuck = True`): **Score = 10,000**
-
-**דוגמה:** בית ספר עם 3 תקלות, ממוצע חומרה 4, ממוצע גיל 2 ימים, תקלה אחת חוזרת:
-```
-N = 3
-U = 4
-T = 2
-R = (5 + 1 + 1) / 3 = 2.33
-
-Score = 0.35 × 3 + 0.25 × 4 + 0.25 × 2 + 0.15 × 2.33
-      = 1.05 + 1.00 + 0.50 + 0.35
-      = 2.90
-```
-
-### שלב 2: הקצאה אזורית - Regional Anchor & Cluster
-
-לאחר חישוב הציונים, האלגוריתם ממיין את בתי הספר **לפי ציון יורד** ומבצע הקצאה אזורית:
-
-1. **Anchor (עוגן):** הטכנאי מקבל את בית הספר בעל הציון הגבוה ביותר
-2. **Cluster (אשכול):** הטכנאי מקבל את **כל בתי הספר מאותו אזור**
-3. **Next Region:** עוברים לטכנאי הבא עם בית הספר הבא בציון (מאזור אחר)
-4. **Repeat:** ממשיכים עד שכל בתי הספר מוקצים
-
-**יתרונות:**
-- ✅ כל טכנאי עובד ב-**אזור אחד בלבד** (מינימום זמן נסיעה)
-- ✅ בתי ספר דחופים מקבלים עדיפות מוחלטת (ציון 10,000)
-- ✅ חלוקה יעילה - טכנאים לא מפוזרים בין אזורים שונים
-- ✅ קלות תכנון - כל טכנאי יודע לאיזה אזור לנסוע
-
-**דוגמה: 3 טכנאים, 7 בתי ספר מ-4 אזורים**
-```
-בתי ספר (לפי ציון):
-1. תיכון ירושלים (Jerusalem) - 10000 דחוף!
-2. חטיבה ירושלים (Jerusalem) - 3.5
-3. יסודי צפון (North) - 2.9
-4. תיכון חיפה (North) - 2.1
-5. חטיבה דרום (South) - 1.8
-6. יסודי דרום (South) - 1.2
-7. תיכון מרכז (Center) - 0.9
-
-הקצאה:
-- טכנאי 1 → Jerusalem: תיכון ירושלים (10000), חטיבה ירושלים (3.5)
-- טכנאי 2 → North: יסודי צפון (2.9), תיכון חיפה (2.1)
-- טכנאי 3 → South: חטיבה דרום (1.8), יסודי דרום (1.2)
-Note: תיכון מרכז יוקצה לטכנאי 1 בסבב נוסף (אם צורך)
-```
-
-### דוגמת פלט מהאלגוריתם
-
-```json
-{
-  "assignments": [
-    {
-      "technician": "טכנאי 1",
-      "total_faults": 8,
-      "avg_severity": 3.8,
-      "priority_score": 2.65,
-      "schools": [
-        {
-          "school": "תיכון ירושלים",
-          "region": "Jerusalem",
-          "faults": 5,
-          "priority": 3.2
-        }
-      ]
-    }
-  ]
-}
-```
-
-## 🎯 תרחישי שימוש
-
-### 1️⃣ דיווח תקלה חדשה
-1. בחר תלמיד מהרשימה הנשלפת (חיפוש אפשרי)
-2. בחר סוג תקלה
-3. סמן אם יש ספרים תקועים (= דחוף אוטומטית)
-4. הוסף תיאור (אופציונלי)
-5. שלח
-
-### 2️⃣ ניהול תקלות
-- **סינון**: לפי סטטוס, דחיפות, טקסט חופשי
-- **צפייה בפרטים**: לחץ על כפתור העין 👁️
-- **עדכון סטטוס**: פתוחה → נפתרה → סגורה
-- **הקצאת טכנאי**: בעת עדכון פרטים
-
-### 3️⃣ תזמון טכנאים
-1. הזן מספר טכנאים זמינים (1-10)
-2. הרץ אלגוריתם
-3. קבל חלוקה מאוזנת:
-   - בתי ספר לכל טכנאי
-   - רשימת תקלות מפורטת
-   - ציוני עדיפות
-
-## 🛠️ פיתוח והתאמה אישית
-
-### שינוי מיפוי בתי ספר
-ערוך את `SCHOOL_MAPPING` ב-`flask_app.py`:
-```python
-SCHOOL_MAPPING = {
-    'שם בית ספר': 'אזור',
-    # ...
-}
-```
-
-### שינוי נוסחת העדיפות
-במתודה `schedule_technicians()` שנה את המקדמים:
-```python
-school_scores['priority_score'] = (
-    0.35 * school_scores['N'] +  # משקל מספר תקלות
-    0.25 * school_scores['U'] +  # משקל דחיפות
-    0.25 * school_scores['T'] +  # משקל חומרה
-    0.15 * school_scores['R']    # משקל תקלות אחרונות
-)
-```
-
-### הוספת סוג תקלה חדש
-1. הוסף ל-`SEVERITY_MAP` ב-`flask_app.py`:
-```python
-SEVERITY_MAP = {
-    "סוג תקלה חדש": 4,  # חומרה 1-5
-    # ...
-}
-```
-
-2. הוסף אופציה ב-`templates/index.html`:
-```html
-<option value="סוג תקלה חדש">סוג תקלה חדש</option>
+│   └── index.html         # SPA
+├── docs/
+│   └── schema_mapping.md  # מיפוי מודל מקומי → סכמת Adon Locker
+├── legacy/                # סקריפטי seed ישנים (לא בשימוש, נשמרו לתיעוד)
+├── requirements.txt
+├── Procfile               # gunicorn entrypoint
+├── render.yaml            # Render Blueprint
+├── runtime.txt            # Python version pin
+├── .env.example
+└── .gitignore
 ```
 
 ## 🔒 אבטחה
 
-- **SQL Injection**: SQLAlchemy ORM מונע injection
-- **XSS**: תוכן משתמש מנוקה אוטומטית
-- **Environment Variables**: סיסמאות ב-.env (לא ב-Git)
-- **Production**: השתמש ב-Gunicorn/uWSGI ולא בשרת הפיתוח
+- **Google OAuth + email allowlist** (`auth.py`) — חוסם כל route חוץ מ-`/auth/*`, `/static/*`, `/api/health`.
+- **Read-only ל-Adon Locker** — ה-engine ב-`db.py` מוגדר עם `postgresql_readonly=True`. כל הקוד משתמש ב-`SELECT` בלבד.
+- **Session cookies**: `HttpOnly`, `SameSite=Lax`, `Secure` ב-prod.
+- **SECRET_KEY** ייצור Render אוטומטית.
 
-### הפעלה ב-Production
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 flask_app:app
-```
+## 🛠️ Stack
 
-## 📝 רישוי
-
-פרויקט פרטי - כל הזכויות שמורות
-
-## 🆘 תמיכה ופתרון בעיות
-
-### השרת לא עולה
-- ודא ש-Flask מותקן: `pip install flask`
-- בדוק את משתני הסביבה ב-`.env`
-- בדוק חיבור ל-PostgreSQL
-
-### לא נטענים תלמידים
-- ודא ש-`DATABASE_URL` נכון
-- בדוק גישה למסד הנתונים המרוחק
-- בדוק לוגים של השרת
-
-### תקלות לא נשמרות
-- בדוק שקובץ `faults_system.db` קיים
-- בדוק הרשאות כתיבה בתיקייה
-- בדוק JavaScript console בדפדפן
-
-## 🎓 טכנולוגיות
-
-- **Backend**: Flask (Python)
-- **Frontend**: HTML5, Bootstrap 5, Vanilla JavaScript
-- **Database**: PostgreSQL (Remote) + SQLite (Local)
-- **ORM**: SQLAlchemy
-- **Data Processing**: pandas
+Backend: Flask 3, SQLAlchemy 2, gunicorn, Authlib  
+Frontend: Bootstrap 5 RTL, vanilla JS, Chart.js  
+DB: Postgres (שני חיבורים)  
+Hosting: Render (web + Postgres) + Supabase (חיצוני, של נתנאל)
 
 ---
 
-**גרסה**: 2.0 (Flask SPA)  
-**תאריך עדכון**: פברואר 2026  
-**מפתחים**: Team 41
-
-🚀 **ביצועים מהירים | 🎨 ממשק מודרני | 🧮 אלגוריתם חכם**
+**מפתחים:** יובל לבל (owner), טליה Cup, Team 41

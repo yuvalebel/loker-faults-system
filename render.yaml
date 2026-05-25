@@ -1,0 +1,44 @@
+# Render blueprint — provisions the web service + Postgres in one click.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# After Render creates the resources, fill in the secret env vars marked
+# `sync: false` from the Render dashboard:
+#   - ADON_LOCKER_DATABASE_URL  (Netanel's Supabase connection string + ?sslmode=require)
+#   - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (Google Cloud Console OAuth credentials)
+#   - ALLOWED_EMAILS (CSV, e.g. talyacu@gmail.com,yuval@example.com)
+#   - SECRET_KEY (random 32+ char string for Flask sessions)
+
+databases:
+  - name: loker-faults-db
+    databaseName: loker_faults
+    user: loker_faults
+    plan: free
+
+services:
+  - type: web
+    name: loker-faults-system
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn flask_app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: OUR_DATABASE_URL
+        fromDatabase:
+          name: loker-faults-db
+          property: connectionString
+      - key: ADON_LOCKER_DATABASE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADON_CACHE_TTL_SECONDS
+        value: "60"
