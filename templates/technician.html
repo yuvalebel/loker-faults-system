@@ -150,7 +150,7 @@ function renderSchoolList() {
 
     cont.innerHTML = schools.map(([name, info]) => {
         const badgeCls = info.urgent > 0 ? 'school-count urgent' : 'school-count';
-        return `<button class="school-card" onclick="selectSchool(${JSON.stringify(name)})">
+        return `<button class="school-card" data-school="${esc(name)}">
             <div>
                 <div class="school-name">${esc(name)}</div>
                 ${info.urgent > 0 ? `<div style="font-size:0.78rem; color:#e53935; margin-top:2px;"><i class="bi bi-fire"></i> ${info.urgent} דחופות</div>` : ''}
@@ -158,6 +158,11 @@ function renderSchoolList() {
             <span class="${badgeCls}">${info.total} תקלות</span>
         </button>`;
     }).join('');
+
+    // Wire clicks via event delegation (avoids HTML-attribute escaping issues with Hebrew + quotes)
+    cont.querySelectorAll('.school-card').forEach(btn => {
+        btn.addEventListener('click', () => selectSchool(btn.dataset.school));
+    });
 }
 
 function renderFaultsForSchool(schoolName) {
