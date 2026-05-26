@@ -159,7 +159,11 @@ def get_students():
         + " | ת.ז: " + students_df["studentId"].fillna("")
         + " | " + students_df["school_name"].fillna("אין בית ספר")
     )
-    return jsonify(students_df.to_dict(orient="records"))
+    # Replace pandas NaN with None so the JSON output is spec-compliant (browsers
+    # reject literal `NaN`). Going via to_json/json.loads roundtrip handles all
+    # column types correctly, including nested datetimes and numerics.
+    import json as _json
+    return jsonify(_json.loads(students_df.to_json(orient="records", force_ascii=False)))
 
 
 @app.route("/api/faults", methods=["GET"])
