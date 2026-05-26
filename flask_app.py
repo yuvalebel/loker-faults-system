@@ -696,6 +696,88 @@ def get_locker(locker_id):
     return jsonify({"locker": locker})
 
 
+@app.route("/reports")
+def reports_page():
+    return render_template("reports.html")
+
+
+@app.route("/api/reports/stats", methods=["GET"])
+def reports_stats():
+    """Aggregated stats for the reports dashboard."""
+    from sqlalchemy import text
+    with our_engine.connect() as conn:
+        total = conn.execute(text("SELECT COUNT(*) FROM faults")).scalar() or 0
+        open_count = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Open'")).scalar() or 0
+        closed_count = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Closed'")).scalar() or 0
+        urgent_open = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Open' AND is_urgent = 1")).scalar() or 0
+
+        by_type = [
+            {"label": r[0] or "ללא סיווג", "count": r[1]}
+            for r in conn.execute(text(
+                "SELECT fault_type, COUNT(*) FROM faults GROUP BY fault_type ORDER BY COUNT(*) DESC"
+            )).fetchall()
+        ]
+        by_severity = [
+            {"label": str(r[0]) if r[0] is not None else "ללא", "count": r[1]}
+            for r in conn.execute(text(
+                "SELECT severity, COUNT(*) FROM faults GROUP BY severity ORDER BY severity"
+            )).fetchall()
+        ]
+        by_month = [
+            {"label": r[0], "count": r[1]}
+            for r in conn.execute(text(
+                "SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) FROM faults "
+                "WHERE created_at IS NOT NULL GROUP BY m ORDER BY m DESC LIMIT 12"
+            )).fetchall()
+        ]
+        by_month.reverse()
+        by_technician = [
+            {"label": r[0] or "לא הוקצה", "count": r[1]}
+            for r in conn.execute(text(
+                "SELECT assigned_technician, COUNT(*) FROM faults "
+                "WHERE status = 'Open' GROUP BY assigned_technician ORDER BY COUNT(*) DESC"
+            )).fetchall()
+        ]
+
+    return jsonify({
+        "total": total,
+        "open": open_count,
+        "closed": closed_count,
+        "urgent_open": urgent_open,
+        "by_type": by_type,
+        "by_severity": by_severity,
+        "by_month": by_month,
+        "by_technician": by_technician,
+    })
+
+
+@app.route("/api/reports/export", methods=["GET"])
+def reports_export():
+    """Download all faults as an Excel file."""
+    import io
+    from flask import send_file
+    df = pd.read_sql("SELECT * FROM faults ORDER BY created_at DESC", our_engine)
+    rename_map = {
+        "id": "מספר תקלה", "student_id_ext": "ת.ז תלמיד", "locker_id": "מזהה לוקר",
+        "fault_type": "סוג תקלה", "severity": "חומרה", "books_stuck": "ספרים תקועים",
+        "is_urgent": "דחוף", "status": "סטטוס", "description": "תיאור",
+        "created_at": "נפתחה ב", "resolved_at": "נסגרה ב",
+        "assigned_technician": "טכנאי", "is_recurring": "חוזרת",
+        "technician_notes": "הערות טכנאי",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="תקלות", index=False)
+    buf.seek(0)
+    from datetime import datetime as _dt
+    fname = f"faults-{_dt.now().strftime('%Y-%m-%d')}.xlsx"
+    return send_file(
+        buf, as_attachment=True, download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     """Liveness probe for Render."""
