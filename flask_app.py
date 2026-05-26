@@ -703,41 +703,56 @@ def reports_page():
 
 @app.route("/api/reports/stats", methods=["GET"])
 def reports_stats():
-    """Aggregated stats for the reports dashboard."""
-    from sqlalchemy import text
-    with our_engine.connect() as conn:
-        total = conn.execute(text("SELECT COUNT(*) FROM faults")).scalar() or 0
-        open_count = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Open'")).scalar() or 0
-        closed_count = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Closed'")).scalar() or 0
-        urgent_open = conn.execute(text("SELECT COUNT(*) FROM faults WHERE status = 'Open' AND is_urgent = 1")).scalar() or 0
+    """Aggregated stats for the dashboard. Optional ?school=<name> filter."""
+    school_filter = (request.args.get("school") or "").strip()
 
-        by_type = [
-            {"label": r[0] or "ללא סיווג", "count": r[1]}
-            for r in conn.execute(text(
-                "SELECT fault_type, COUNT(*) FROM faults GROUP BY fault_type ORDER BY COUNT(*) DESC"
-            )).fetchall()
+    df = pd.read_sql("SELECT * FROM faults", our_engine)
+
+    # Enrich with school via Adon Locker DB (cached)
+    students = adon_db.get_all_students()
+    id_to_school = {s["id"]: (s.get("school_name") or "") for s in students}
+    if not df.empty:
+        df["school_name"] = df["student_id_ext"].map(id_to_school).fillna("לא ידוע")
+
+    all_schools = sorted({v for v in id_to_school.values() if v})
+
+    if school_filter and not df.empty:
+        df = df[df["school_name"] == school_filter]
+
+    def value_counts(series, default_label="ללא"):
+        if series.empty:
+            return []
+        return [
+            {"label": (str(k) if k is not None and str(k).lower() != "nan" else default_label), "count": int(v)}
+            for k, v in series.value_counts().items()
         ]
-        by_severity = [
-            {"label": str(r[0]) if r[0] is not None else "ללא", "count": r[1]}
-            for r in conn.execute(text(
-                "SELECT severity, COUNT(*) FROM faults GROUP BY severity ORDER BY severity"
-            )).fetchall()
-        ]
-        by_month = [
-            {"label": r[0], "count": r[1]}
-            for r in conn.execute(text(
-                "SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) FROM faults "
-                "WHERE created_at IS NOT NULL GROUP BY m ORDER BY m DESC LIMIT 12"
-            )).fetchall()
-        ]
-        by_month.reverse()
-        by_technician = [
-            {"label": r[0] or "לא הוקצה", "count": r[1]}
-            for r in conn.execute(text(
-                "SELECT assigned_technician, COUNT(*) FROM faults "
-                "WHERE status = 'Open' GROUP BY assigned_technician ORDER BY COUNT(*) DESC"
-            )).fetchall()
-        ]
+
+    total = len(df)
+    open_count = int((df.get("status", pd.Series(dtype=object)) == "Open").sum()) if total else 0
+    closed_count = int((df.get("status", pd.Series(dtype=object)) == "Closed").sum()) if total else 0
+    urgent_open = 0
+    if total and "is_urgent" in df.columns:
+        urgent_open = int(((df["status"] == "Open") & (df["is_urgent"].astype(bool))).sum())
+
+    by_type = value_counts(df["fault_type"]) if total else []
+    by_severity = value_counts(df["severity"]) if total else []
+
+    by_month = []
+    if total and "created_at" in df.columns:
+        ts = pd.to_datetime(df["created_at"], errors="coerce").dropna()
+        if not ts.empty:
+            counts = ts.dt.strftime("%Y-%m").value_counts().sort_index()
+            by_month = [{"label": k, "count": int(v)} for k, v in counts.items()][-12:]
+
+    # Only useful when looking at the org as a whole
+    by_school = value_counts(df["school_name"], default_label="לא ידוע") if (total and not school_filter) else []
+
+    by_technician = []
+    if total:
+        open_df = df[df["status"] == "Open"]
+        if not open_df.empty:
+            techs = open_df["assigned_technician"].fillna("לא הוקצה")
+            by_technician = [{"label": str(k), "count": int(v)} for k, v in techs.value_counts().items()]
 
     return jsonify({
         "total": total,
@@ -747,7 +762,10 @@ def reports_stats():
         "by_type": by_type,
         "by_severity": by_severity,
         "by_month": by_month,
+        "by_school": by_school,
         "by_technician": by_technician,
+        "available_schools": all_schools,
+        "current_filter": school_filter,
     })
 
 

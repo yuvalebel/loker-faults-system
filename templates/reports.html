@@ -39,6 +39,15 @@
 
 <div class="container my-4">
 
+    <!-- SCHOOL FILTER -->
+    <div class="chart-card mb-4 no-print d-flex align-items-center gap-3 flex-wrap">
+        <label for="schoolFilter" class="m-0 fw-bold"><i class="bi bi-funnel"></i> סנן לפי בית ספר:</label>
+        <select id="schoolFilter" class="form-select form-select-sm" style="max-width: 320px;">
+            <option value="">כל בתי הספר</option>
+        </select>
+        <span id="filterIndicator" class="badge bg-primary" style="display: none;"></span>
+    </div>
+
     <!-- KPI ROW -->
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
@@ -113,6 +122,18 @@
         </div>
     </div>
 
+    <div class="row g-3 mb-4" id="bySchoolRow">
+        <div class="col-12">
+            <div class="chart-card">
+                <h5><i class="bi bi-buildings"></i> תקלות לפי בית ספר</h5>
+                <div id="school-chart-wrap" style="position: relative; height: 320px;">
+                    <canvas id="schoolChart"></canvas>
+                </div>
+                <div id="school-empty" class="empty-state" style="display:none;">אין עדיין תקלות במערכת</div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-3">
         <div class="col-md-12">
             <div class="chart-card">
@@ -125,9 +146,14 @@
 </div>
 
 <script>
+let schoolsLoaded = false;
+const chartInstances = {};
+
 async function loadStats() {
     try {
-        const r = await fetch('/api/reports/stats');
+        const filter = document.getElementById('schoolFilter').value;
+        const qs = filter ? ('?school=' + encodeURIComponent(filter)) : '';
+        const r = await fetch('/api/reports/stats' + qs);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const s = await r.json();
 
@@ -136,9 +162,25 @@ async function loadStats() {
         document.getElementById('kpi-closed').textContent = s.closed;
         document.getElementById('kpi-urgent').textContent = s.urgent_open;
 
-        renderPie('typeChart', 'type-empty', s.by_type);
-        renderBar('severityChart', 'sev-empty', s.by_severity, 'מספר תקלות');
-        renderBar('monthChart', 'month-empty', s.by_month, 'מספר תקלות');
+        if (!schoolsLoaded) {
+            populateSchoolFilter(s.available_schools);
+            schoolsLoaded = true;
+        }
+        updateFilterIndicator(s.current_filter);
+
+        renderPie('typeChart', 'type-empty', 'type-chart-wrap', s.by_type);
+        renderBar('severityChart', 'sev-empty', 'sev-chart-wrap', s.by_severity, 'מספר תקלות');
+        renderBar('monthChart', 'month-empty', 'month-chart-wrap', s.by_month, 'מספר תקלות');
+
+        // By-school chart only when viewing all schools
+        const bySchoolRow = document.getElementById('bySchoolRow');
+        if (s.current_filter) {
+            bySchoolRow.style.display = 'none';
+        } else {
+            bySchoolRow.style.display = '';
+            renderBar('schoolChart', 'school-empty', 'school-chart-wrap', s.by_school, 'מספר תקלות');
+        }
+
         renderTechTable(s.by_technician);
     } catch (e) {
         console.error('Failed to load stats', e);
@@ -146,15 +188,47 @@ async function loadStats() {
     }
 }
 
+function populateSchoolFilter(schools) {
+    const sel = document.getElementById('schoolFilter');
+    for (const name of (schools || [])) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+    }
+}
+
+function updateFilterIndicator(filter) {
+    const ind = document.getElementById('filterIndicator');
+    if (filter) {
+        ind.textContent = 'מציג: ' + filter;
+        ind.style.display = '';
+    } else {
+        ind.style.display = 'none';
+    }
+}
+
 const colors = ['#3949ab','#43a047','#fb8c00','#e53935','#8e24aa','#00897b','#5e35b1','#c0ca33','#6d4c41','#546e7a'];
 
-function renderPie(canvasId, emptyId, data) {
+function destroyChart(canvasId) {
+    if (chartInstances[canvasId]) {
+        chartInstances[canvasId].destroy();
+        delete chartInstances[canvasId];
+    }
+}
+
+function renderPie(canvasId, emptyId, wrapId, data) {
+    destroyChart(canvasId);
+    const wrap = document.getElementById(wrapId);
+    const empty = document.getElementById(emptyId);
     if (!data || data.length === 0) {
-        document.getElementById(canvasId).parentElement.style.display = 'none';
-        document.getElementById(emptyId).style.display = 'block';
+        wrap.style.display = 'none';
+        empty.style.display = 'block';
         return;
     }
-    new Chart(document.getElementById(canvasId), {
+    wrap.style.display = '';
+    empty.style.display = 'none';
+    chartInstances[canvasId] = new Chart(document.getElementById(canvasId), {
         type: 'pie',
         data: {
             labels: data.map(d => d.label),
@@ -167,13 +241,18 @@ function renderPie(canvasId, emptyId, data) {
     });
 }
 
-function renderBar(canvasId, emptyId, data, label) {
+function renderBar(canvasId, emptyId, wrapId, data, label) {
+    destroyChart(canvasId);
+    const wrap = document.getElementById(wrapId);
+    const empty = document.getElementById(emptyId);
     if (!data || data.length === 0) {
-        document.getElementById(canvasId).parentElement.style.display = 'none';
-        document.getElementById(emptyId).style.display = 'block';
+        wrap.style.display = 'none';
+        empty.style.display = 'block';
         return;
     }
-    new Chart(document.getElementById(canvasId), {
+    wrap.style.display = '';
+    empty.style.display = 'none';
+    chartInstances[canvasId] = new Chart(document.getElementById(canvasId), {
         type: 'bar',
         data: {
             labels: data.map(d => d.label),
@@ -205,7 +284,10 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-document.addEventListener('DOMContentLoaded', loadStats);
+document.addEventListener('DOMContentLoaded', () => {
+    loadStats();
+    document.getElementById('schoolFilter').addEventListener('change', loadStats);
+});
 </script>
 
 </body>
