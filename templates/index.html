@@ -1822,11 +1822,37 @@
         }
         
         function updateFaultsStats() {
-            // Use full dataset — stats are a global dashboard, not tied to current filter.
-            const total = allFaults.length;
-            const urgent = allFaults.filter(f => (f.books_stuck || f.is_urgent) && f.status === 'Open').length;
-            const open = allFaults.filter(f => f.status === 'Open').length;
-            const closed = allFaults.filter(f => f.status === 'Closed').length;
+            // Stats reflect the active *context* filters (school/type/severity/date/search),
+            // but NOT the status/urgent filters — those are what the cards themselves represent.
+            const schoolFilter = document.getElementById('schoolFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const severityFilter = document.getElementById('severityFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase().trim();
+
+            const context = allFaults.filter(fault => {
+                if (schoolFilter !== 'all' && fault.school_name !== schoolFilter) return false;
+                if (typeFilter !== 'all' && fault.fault_type !== typeFilter) return false;
+                if (severityFilter !== 'all' && String(fault.severity) !== severityFilter) return false;
+                if (dateFrom || dateTo) {
+                    if (!fault.created_at) return false;
+                    const created = fault.created_at.slice(0, 10);
+                    if (dateFrom && created < dateFrom) return false;
+                    if (dateTo && created > dateTo) return false;
+                }
+                if (searchInput) {
+                    const sn = (fault.student_name || '').toLowerCase();
+                    const sid = String(fault.studentId || '').toLowerCase();
+                    if (!sn.includes(searchInput) && !sid.includes(searchInput)) return false;
+                }
+                return true;
+            });
+
+            const total = context.length;
+            const urgent = context.filter(f => (f.books_stuck || f.is_urgent) && f.status === 'Open').length;
+            const open = context.filter(f => f.status === 'Open').length;
+            const closed = context.filter(f => f.status === 'Closed').length;
 
             const currentStatus = document.getElementById('statusFilter').value;
             const currentUrgent = document.getElementById('urgentFilter').value;
