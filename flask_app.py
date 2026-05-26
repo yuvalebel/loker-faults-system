@@ -209,6 +209,19 @@ def get_faults():
                 fault_dict["school_name"] = "N/A"
                 fault_dict["region"] = "Unknown"
 
+            # Locker enrichment for the mobile / detail views (cached upstream)
+            if fault.locker_id:
+                locker = adon_db.get_locker_by_id(fault.locker_id)
+                if locker:
+                    fault_dict["locker_info"] = {
+                        "cabinet_name": locker.get("cabinet_name"),
+                        "cell_number": locker.get("cell_number"),
+                        "lock_type": locker.get("lock_type"),
+                        "student_code": locker.get("student_code"),
+                        "master_code": locker.get("master_code"),
+                        "lock_number": locker.get("lock_number"),
+                    }
+
             result.append(fault_dict)
 
         return jsonify(result)
@@ -699,6 +712,11 @@ def get_locker(locker_id):
 @app.route("/reports")
 def reports_page():
     return render_template("reports.html")
+
+
+@app.route("/technician")
+def technician_page():
+    return render_template("technician.html")
 
 
 @app.route("/api/reports/stats", methods=["GET"])

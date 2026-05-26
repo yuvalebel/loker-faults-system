@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a237e">
+    <title>אדון לוקר — מסך טכנאי</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root { --primary: #1a237e; --accent: #3949ab; }
+        body { background: #eef1f8; font-family: 'Segoe UI', Arial, sans-serif; padding-bottom: 80px; }
+        .topbar { background: var(--primary); color: #fff; padding: 1rem; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+        .topbar h1 { font-size: 1.15rem; margin: 0; font-weight: 600; }
+        .topbar .total-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; }
+        .filters { background: #fff; padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; position: sticky; top: 60px; z-index: 99; }
+        .filter-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+        .chip { flex: 0 0 auto; padding: 6px 14px; border-radius: 20px; background: #e9ecef; border: none; font-size: 0.9rem; white-space: nowrap; }
+        .chip.active { background: var(--accent); color: #fff; }
+        .chip .count { opacity: 0.7; font-size: 0.8em; margin-right: 4px; }
+        .search-box { margin-top: 0.5rem; }
+        .container-cards { padding: 1rem; }
+        .fault-card { background: #fff; border-radius: 14px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+        .fault-card.urgent { border-right: 4px solid #e53935; }
+        .fault-card.recurring { border-right: 4px solid #fb8c00; }
+        .fault-card.closed { opacity: 0.7; }
+        .card-top { display: flex; justify-content: space-between; align-items: start; gap: 8px; margin-bottom: 0.5rem; }
+        .student-name { font-size: 1.1rem; font-weight: 700; color: #1a237e; }
+        .student-tz { color: #6c757d; font-size: 0.85rem; font-weight: normal; }
+        .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+        .status-Open { background: #fff3cd; color: #b8860b; }
+        .status-Closed { background: #d4edda; color: #155724; }
+        .info-row { display: flex; align-items: center; gap: 8px; color: #495057; font-size: 0.9rem; margin: 4px 0; }
+        .info-row i { color: var(--accent); width: 16px; }
+        .meta-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+        .tag { font-size: 0.78rem; padding: 2px 8px; border-radius: 8px; background: #e9ecef; color: #495057; }
+        .tag.urgent { background: #fee; color: #c33; }
+        .tag.recurring { background: #ffe8d6; color: #cc6600; }
+        .code-block { background: #f4f6fa; padding: 8px 12px; border-radius: 8px; margin: 8px 0; font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #1a237e; text-align: center; }
+        .actions { display: flex; gap: 6px; margin-top: 12px; }
+        .actions .btn { flex: 1; font-size: 0.88rem; padding: 8px 4px; }
+        .actions .btn-icon { flex: 0 0 auto; width: 44px; padding: 8px; }
+        .description { background: #f8f9fa; padding: 8px 12px; border-radius: 8px; margin: 6px 0; font-size: 0.9rem; color: #495057; max-height: 80px; overflow-y: auto; }
+        .empty-list { text-align: center; padding: 3rem 1rem; color: #6c757d; }
+        .empty-list i { font-size: 3rem; opacity: 0.3; }
+        .loading { text-align: center; padding: 2rem; color: #6c757d; }
+        @media (min-width: 768px) {
+            .container-cards { max-width: 720px; margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar d-flex justify-content-between align-items-center">
+    <h1><i class="bi bi-tools"></i> מסך טכנאי</h1>
+    <span class="total-badge" id="totalBadge">— תקלות</span>
+</div>
+
+<div class="filters">
+    <div class="filter-chips" id="statusFilters">
+        <button class="chip active" data-status="Open">פתוחות <span class="count" id="cnt-Open">0</span></button>
+        <button class="chip" data-status="Closed">סגורות <span class="count" id="cnt-Closed">0</span></button>
+        <button class="chip" data-status="all">הכל <span class="count" id="cnt-all">0</span></button>
+    </div>
+    <div class="search-box">
+        <input id="searchInput" type="search" class="form-control form-control-sm" placeholder="חיפוש: שם תלמיד או ת.ז…">
+    </div>
+</div>
+
+<div class="container-cards" id="cardsContainer">
+    <div class="loading"><div class="spinner-border text-primary"></div><div class="mt-2">טוען תקלות…</div></div>
+</div>
+
+<script>
+let allFaults = [];
+let activeStatus = 'Open';
+let searchQuery = '';
+
+async function loadFaults() {
+    try {
+        const r = await fetch('/api/faults');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        allFaults = await r.json();
+        renderCounts();
+        renderCards();
+    } catch (e) {
+        console.error(e);
+        document.getElementById('cardsContainer').innerHTML =
+            '<div class="empty-list"><i class="bi bi-exclamation-triangle"></i><div>שגיאה: ' + e.message + '</div></div>';
+    }
+}
+
+function renderCounts() {
+    const counts = { Open: 0, Closed: 0, all: allFaults.length };
+    for (const f of allFaults) counts[f.status] = (counts[f.status] || 0) + 1;
+    document.getElementById('cnt-Open').textContent = counts.Open;
+    document.getElementById('cnt-Closed').textContent = counts.Closed;
+    document.getElementById('cnt-all').textContent = counts.all;
+    document.getElementById('totalBadge').textContent = counts.Open + ' פתוחות';
+}
+
+function renderCards() {
+    const cont = document.getElementById('cardsContainer');
+    let faults = allFaults;
+    if (activeStatus !== 'all') faults = faults.filter(f => f.status === activeStatus);
+    if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        faults = faults.filter(f =>
+            (f.student_name || '').toLowerCase().includes(q) ||
+            (f.studentId || '').toLowerCase().includes(q)
+        );
+    }
+    if (faults.length === 0) {
+        cont.innerHTML = '<div class="empty-list"><i class="bi bi-inbox"></i><div>אין תקלות להצגה</div></div>';
+        return;
+    }
+    cont.innerHTML = faults.map(renderCard).join('');
+}
+
+function renderCard(f) {
+    const cls = ['fault-card'];
+    if (f.is_urgent && f.status === 'Open') cls.push('urgent');
+    if (f.is_recurring && f.status === 'Open') cls.push('recurring');
+    if (f.status === 'Closed') cls.push('closed');
+
+    const li = f.locker_info || {};
+    const lockType = li.lock_type === 'digital' ? 'דיגיטלי' : li.lock_type === 'mechanical' ? 'מכני' : (li.lock_type || '');
+    const codeLabel = lockType === 'מכני' ? 'קוד מאסטר' : 'קוד תלמיד';
+    const codeValue = lockType === 'מכני' ? (li.master_code || '—') : (li.student_code || '—');
+
+    const tags = [];
+    if (f.is_urgent) tags.push('<span class="tag urgent"><i class="bi bi-fire"></i> דחוף</span>');
+    if (f.is_recurring) tags.push('<span class="tag recurring"><i class="bi bi-arrow-repeat"></i> חוזרת</span>');
+    if (f.books_stuck) tags.push('<span class="tag"><i class="bi bi-book"></i> ספרים תקועים</span>');
+    if (typeof f.severity === 'number') tags.push(`<span class="tag">חומרה ${f.severity}</span>`);
+
+    const waBtn = f.parentPhone
+        ? `<a class="btn btn-success btn-icon" href="https://wa.me/${cleanPhone(f.parentPhone)}" target="_blank" title="WhatsApp להורה"><i class="bi bi-whatsapp"></i></a>`
+        : '';
+    const callBtn = f.parentPhone
+        ? `<a class="btn btn-outline-primary btn-icon" href="tel:${cleanPhone(f.parentPhone)}" title="התקשר להורה"><i class="bi bi-telephone"></i></a>`
+        : '';
+
+    const statusBtn = f.status === 'Open'
+        ? `<button class="btn btn-success" onclick="updateStatus(${f.id}, 'Closed')"><i class="bi bi-check-circle"></i> סגור תקלה</button>`
+        : `<button class="btn btn-outline-warning" onclick="updateStatus(${f.id}, 'Open')"><i class="bi bi-arrow-counterclockwise"></i> פתח מחדש</button>`;
+
+    return `
+    <div class="${cls.join(' ')}">
+        <div class="card-top">
+            <div>
+                <div class="student-name">${esc(f.student_name) || 'תלמיד לא ידוע'}</div>
+                <div class="student-tz">ת.ז ${esc(f.studentId) || '—'}</div>
+            </div>
+            <span class="status-badge status-${f.status}">${f.status === 'Open' ? 'פתוחה' : 'סגורה'}</span>
+        </div>
+        <div class="info-row"><i class="bi bi-building"></i> ${esc(f.school_name) || '—'}</div>
+        ${li.cabinet_name ? `<div class="info-row"><i class="bi bi-grid-3x3"></i> ארון ${esc(li.cabinet_name)} • תא ${esc(li.cell_number) || '?'} • ${esc(lockType)}</div>` : ''}
+        <div class="info-row"><i class="bi bi-wrench"></i> ${esc(f.fault_type) || '—'}</div>
+        ${f.description ? `<div class="description">${esc(f.description)}</div>` : ''}
+        ${tags.length ? `<div class="meta-tags">${tags.join('')}</div>` : ''}
+        ${codeValue !== '—' ? `<div class="code-block">${esc(codeLabel)}: ${esc(codeValue)}</div>` : ''}
+        ${li.lock_number ? `<div class="info-row"><i class="bi bi-lock"></i> מנעול ${esc(li.lock_number)}</div>` : ''}
+        <div class="actions">
+            ${statusBtn}
+            ${waBtn}
+            ${callBtn}
+        </div>
+    </div>`;
+}
+
+async function updateStatus(faultId, newStatus) {
+    const confirmMsg = newStatus === 'Closed' ? 'לסגור את התקלה?' : 'לפתוח את התקלה מחדש?';
+    if (!confirm(confirmMsg)) return;
+    try {
+        const r = await fetch('/api/update_status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({fault_id: faultId, status: newStatus})
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        await loadFaults();
+    } catch (e) {
+        alert('שגיאה בעדכון: ' + e.message);
+    }
+}
+
+function cleanPhone(p) {
+    let s = String(p).replace(/\D/g, '');
+    if (s.startsWith('0')) s = '972' + s.slice(1);
+    return s;
+}
+
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadFaults();
+    document.querySelectorAll('.chip').forEach(c => {
+        c.addEventListener('click', () => {
+            document.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+            c.classList.add('active');
+            activeStatus = c.dataset.status;
+            renderCards();
+        });
+    });
+    document.getElementById('searchInput').addEventListener('input', e => {
+        searchQuery = e.target.value.trim();
+        renderCards();
+    });
+    setInterval(loadFaults, 60000);
+});
+</script>
+
+</body>
+</html>
