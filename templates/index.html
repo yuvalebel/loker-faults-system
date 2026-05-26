@@ -994,6 +994,12 @@
                                                    placeholder="שם תלמיד או ת.ז..."
                                                    onkeyup="filterFaults()">
                                         </div>
+                                        <div class="col-12">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">בית ספר</label>
+                                            <select class="form-select" id="schoolFilter" onchange="filterFaults()">
+                                                <option value="all">כל בתי הספר</option>
+                                            </select>
+                                        </div>
                                         <div class="col-6">
                                             <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סוג תקלה</label>
                                             <select class="form-select" id="typeFilter" onchange="filterFaults()">
@@ -1441,6 +1447,7 @@
                 filteredFaults = allFaults;
 
                 populateTypeFilter();
+                populateSchoolFilter();
                 filterFaults();  // applies current filter state (default: Open)
 
                 console.log(`✅ Loaded ${allFaults.length} faults`);
@@ -1679,6 +1686,7 @@
             const statusFilter = document.getElementById('statusFilter').value;
             const urgentFilter = document.getElementById('urgentFilter').value;
             const searchInput = document.getElementById('searchInput').value.toLowerCase().trim();
+            const schoolFilter = document.getElementById('schoolFilter').value;
             const typeFilter = document.getElementById('typeFilter').value;
             const severityFilter = document.getElementById('severityFilter').value;
             const dateFrom = document.getElementById('dateFrom').value;
@@ -1689,6 +1697,8 @@
 
                 if (urgentFilter === 'yes' && !(fault.books_stuck || fault.is_urgent)) return false;
                 if (urgentFilter === 'no' && (fault.books_stuck || fault.is_urgent)) return false;
+
+                if (schoolFilter !== 'all' && fault.school_name !== schoolFilter) return false;
 
                 if (typeFilter !== 'all' && fault.fault_type !== typeFilter) return false;
 
@@ -1720,17 +1730,26 @@
         function populateTypeFilter() {
             const sel = document.getElementById('typeFilter');
             const types = [...new Set(allFaults.map(f => f.fault_type).filter(Boolean))].sort();
-            // Keep current selection if still present
             const current = sel.value;
             sel.innerHTML = '<option value="all">כולם</option>' +
                 types.map(t => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
             if (current && types.includes(current)) sel.value = current;
         }
 
+        function populateSchoolFilter() {
+            const sel = document.getElementById('schoolFilter');
+            const schools = [...new Set(allFaults.map(f => f.school_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
+            const current = sel.value;
+            sel.innerHTML = '<option value="all">כל בתי הספר</option>' +
+                schools.map(s => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('');
+            if (current && schools.includes(current)) sel.value = current;
+        }
+
         function resetFilters() {
             document.getElementById('statusFilter').value = 'Open';
             document.getElementById('urgentFilter').value = 'all';
             document.getElementById('searchInput').value = '';
+            document.getElementById('schoolFilter').value = 'all';
             document.getElementById('typeFilter').value = 'all';
             document.getElementById('severityFilter').value = 'all';
             document.getElementById('dateFrom').value = '';
