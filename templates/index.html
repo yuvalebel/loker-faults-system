@@ -803,6 +803,9 @@
             <a href="/technician" class="btn btn-light btn-sm mt-2">
                 <i class="bi bi-tools"></i> מסך טכנאי
             </a>
+            <a href="/admin" class="btn btn-light btn-sm mt-2">
+                <i class="bi bi-people"></i> ניהול מיילים
+            </a>
         </div>
         
         <!-- Main Container -->
@@ -986,10 +989,40 @@
                                             </select>
                                         </div>
                                         <div class="col-12">
-                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חיפוש</label>
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חיפוש (שם תלמיד או ת.ז)</label>
                                             <input type="text" class="form-control" id="searchInput"
-                                                   placeholder="חפש לפי שם תלמיד או בית ספר..."
+                                                   placeholder="שם תלמיד או ת.ז..."
                                                    onkeyup="filterFaults()">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">סוג תקלה</label>
+                                            <select class="form-select" id="typeFilter" onchange="filterFaults()">
+                                                <option value="all">כולם</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">חומרה</label>
+                                            <select class="form-select" id="severityFilter" onchange="filterFaults()">
+                                                <option value="all">כולם</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">מתאריך</label>
+                                            <input type="date" class="form-control" id="dateFrom" onchange="filterFaults()">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label fw-bold" style="font-size: 0.875rem; margin-bottom: 0.25rem;">עד תאריך</label>
+                                            <input type="date" class="form-control" id="dateTo" onchange="filterFaults()">
+                                        </div>
+                                        <div class="col-12">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="resetFilters()">
+                                                <i class="bi bi-x-circle"></i> נקה את כל המסננים
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -1012,11 +1045,22 @@
                                 <!-- Will be populated by JS -->
                             </div>
                             
+                            <!-- Bulk Actions Toolbar -->
+                            <div id="bulkActionsBar" class="alert alert-primary d-flex justify-content-between align-items-center mb-2" style="display: none !important;">
+                                <span><i class="bi bi-check2-square"></i> נבחרו <strong id="bulkCount">0</strong> תקלות</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-success" onclick="bulkUpdate('Closed')"><i class="bi bi-check-circle"></i> סגור תקלות שנבחרו</button>
+                                    <button class="btn btn-warning" onclick="bulkUpdate('Open')"><i class="bi bi-arrow-counterclockwise"></i> פתח מחדש</button>
+                                    <button class="btn btn-outline-secondary" onclick="clearSelection()"><i class="bi bi-x"></i> ביטול בחירה</button>
+                                </div>
+                            </div>
+
                             <!-- Faults Table -->
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
+                                            <th style="width: 30px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
                                             <th class="sortable-header" onclick="sortTable('id')">מזהה</th>
                                             <th class="sortable-header" onclick="sortTable('student_name')">תלמיד</th>
                                             <th class="sortable-header" onclick="sortTable('school_name')">בית ספר</th>
@@ -1395,15 +1439,14 @@
                 const response = await fetch('/api/faults');
                 allFaults = await response.json();
                 filteredFaults = allFaults;
-                
-                displayFaults();
-                updateFaultsStats();
-                updateRegionChart();
-                
+
+                populateTypeFilter();
+                filterFaults();  // applies current filter state (default: Open)
+
                 console.log(`✅ Loaded ${allFaults.length} faults`);
             } catch (error) {
                 console.error('Error loading faults:', error);
-                document.getElementById('faultsTableBody').innerHTML = 
+                document.getElementById('faultsTableBody').innerHTML =
                     '<tr><td colspan="9" class="text-center text-danger">שגיאה בטעינת תקלות</td></tr>';
             }
         }
@@ -1578,10 +1621,11 @@
             const tbody = document.getElementById('faultsTableBody');
             
             if (filteredFaults.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center">אין תקלות להצגה</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">אין תקלות להצגה</td></tr>';
+                updateBulkBar();
                 return;
             }
-            
+
             // Apply sorting: column-click wins, otherwise use the active preset from the dropdown
             let displayArray = [...filteredFaults];
             if (sortColumn) {
@@ -1589,9 +1633,10 @@
             } else if (activeSortPreset && SORT_PRESETS[activeSortPreset]) {
                 displayArray.sort(SORT_PRESETS[activeSortPreset]);
             }
-            
+
             tbody.innerHTML = displayArray.map(fault => `
                 <tr>
+                    <td><input type="checkbox" class="bulk-checkbox" data-fault-id="${fault.id}" data-status="${fault.status}" onchange="updateBulkBar()"></td>
                     <td data-label="מזהה"><strong>#${fault.id}</strong></td>
                     <td data-label="תלמיד">${fault.student_name || 'לא ידוע'}</td>
                     <td data-label="בית ספר">${fault.school_name || 'לא ידוע'}</td>
@@ -1633,37 +1678,128 @@
         function filterFaults() {
             const statusFilter = document.getElementById('statusFilter').value;
             const urgentFilter = document.getElementById('urgentFilter').value;
-            const searchInput = document.getElementById('searchInput').value.toLowerCase();
-            
+            const searchInput = document.getElementById('searchInput').value.toLowerCase().trim();
+            const typeFilter = document.getElementById('typeFilter').value;
+            const severityFilter = document.getElementById('severityFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+
             filteredFaults = allFaults.filter(fault => {
-                // Status filter
-                if (statusFilter !== 'all' && fault.status !== statusFilter) {
-                    return false;
+                if (statusFilter !== 'all' && fault.status !== statusFilter) return false;
+
+                if (urgentFilter === 'yes' && !(fault.books_stuck || fault.is_urgent)) return false;
+                if (urgentFilter === 'no' && (fault.books_stuck || fault.is_urgent)) return false;
+
+                if (typeFilter !== 'all' && fault.fault_type !== typeFilter) return false;
+
+                if (severityFilter !== 'all' && String(fault.severity) !== severityFilter) return false;
+
+                if (dateFrom || dateTo) {
+                    if (!fault.created_at) return false;
+                    const created = fault.created_at.slice(0, 10);
+                    if (dateFrom && created < dateFrom) return false;
+                    if (dateTo && created > dateTo) return false;
                 }
-                
-                // Urgent filter
-                if (urgentFilter === 'yes' && !(fault.books_stuck || fault.is_urgent)) {
-                    return false;
-                }
-                if (urgentFilter === 'no' && (fault.books_stuck || fault.is_urgent)) {
-                    return false;
-                }
-                
-                // Search filter
+
                 if (searchInput) {
                     const studentName = (fault.student_name || '').toLowerCase();
-                    const schoolName = (fault.school_name || '').toLowerCase();
-                    if (!studentName.includes(searchInput) && !schoolName.includes(searchInput)) {
+                    const studentId = String(fault.studentId || '').toLowerCase();
+                    if (!studentName.includes(searchInput) && !studentId.includes(searchInput)) {
                         return false;
                     }
                 }
-                
+
                 return true;
             });
-            
+
             displayFaults();
             updateFaultsStats();
             updateRegionChart();
+        }
+
+        function populateTypeFilter() {
+            const sel = document.getElementById('typeFilter');
+            const types = [...new Set(allFaults.map(f => f.fault_type).filter(Boolean))].sort();
+            // Keep current selection if still present
+            const current = sel.value;
+            sel.innerHTML = '<option value="all">כולם</option>' +
+                types.map(t => `<option value="${t.replace(/"/g, '&quot;')}">${t}</option>`).join('');
+            if (current && types.includes(current)) sel.value = current;
+        }
+
+        function resetFilters() {
+            document.getElementById('statusFilter').value = 'Open';
+            document.getElementById('urgentFilter').value = 'all';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('typeFilter').value = 'all';
+            document.getElementById('severityFilter').value = 'all';
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            filterFaults();
+        }
+
+        // ============================================================================
+        // BULK ACTIONS
+        // ============================================================================
+
+        function getSelectedCheckboxes() {
+            return Array.from(document.querySelectorAll('.bulk-checkbox:checked'));
+        }
+
+        function toggleSelectAll(masterCheckbox) {
+            document.querySelectorAll('.bulk-checkbox').forEach(cb => { cb.checked = masterCheckbox.checked; });
+            updateBulkBar();
+        }
+
+        function updateBulkBar() {
+            const selected = getSelectedCheckboxes();
+            const bar = document.getElementById('bulkActionsBar');
+            document.getElementById('bulkCount').textContent = selected.length;
+            bar.style.setProperty('display', selected.length > 0 ? 'flex' : 'none', 'important');
+            // Master checkbox indeterminate state
+            const all = document.querySelectorAll('.bulk-checkbox');
+            const master = document.getElementById('selectAllCheckbox');
+            if (master) {
+                master.checked = all.length > 0 && selected.length === all.length;
+                master.indeterminate = selected.length > 0 && selected.length < all.length;
+            }
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('.bulk-checkbox').forEach(cb => { cb.checked = false; });
+            const master = document.getElementById('selectAllCheckbox');
+            if (master) { master.checked = false; master.indeterminate = false; }
+            updateBulkBar();
+        }
+
+        async function bulkUpdate(newStatus) {
+            const selected = getSelectedCheckboxes();
+            if (selected.length === 0) return;
+
+            // Only act on rows that aren't already in the target status
+            const targets = selected.filter(cb => cb.dataset.status !== newStatus);
+            if (targets.length === 0) {
+                alert(`כל ${selected.length} התקלות שנבחרו כבר במצב "${newStatus === 'Closed' ? 'סגורה' : 'פתוחה'}".`);
+                return;
+            }
+
+            const verb = newStatus === 'Closed' ? 'לסגור' : 'לפתוח מחדש';
+            if (!confirm(`האם ${verb} ${targets.length} תקלות?`)) return;
+
+            const results = await Promise.allSettled(targets.map(cb =>
+                fetch('/api/update_status', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({fault_id: parseInt(cb.dataset.faultId), status: newStatus})
+                }).then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+            ));
+
+            const failed = results.filter(r => r.status === 'rejected').length;
+            if (failed > 0) {
+                alert(`עודכנו ${targets.length - failed} תקלות. ${failed} נכשלו.`);
+            }
+            clearSelection();
+            await loadFaults();
         }
         
         function updateFaultsStats() {

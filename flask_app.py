@@ -15,7 +15,7 @@ from datetime import datetime
 
 import pandas as pd
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, render_template_string, request
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -717,6 +717,84 @@ def reports_page():
 @app.route("/technician")
 def technician_page():
     return render_template("technician.html")
+
+
+# ---------------------------------------------------------------------------
+# Admin: allowed-emails management (restricted to ADMIN_EMAILS)
+# ---------------------------------------------------------------------------
+
+def _admin_guard():
+    from auth import is_admin, current_user
+    user = current_user() or {}
+    if not is_admin(user.get("email")):
+        return jsonify({"error": "Forbidden — admin only"}), 403
+    return None
+
+
+@app.route("/admin")
+def admin_page():
+    from auth import is_admin, current_user
+    user = current_user() or {}
+    if not is_admin(user.get("email")):
+        return render_template_string(
+            "<div style='font-family:sans-serif;direction:rtl;text-align:center;padding:60px;'>"
+            "<h2>🚫 גישה לאדמין בלבד</h2>"
+            "<p>המייל {{ email }} לא ברשימת המנהלים.</p>"
+            "<a href='/'>חזרה למערכת</a></div>",
+            email=user.get("email", "?"),
+        ), 403
+    return render_template("admin.html")
+
+
+@app.route("/api/admin/emails", methods=["GET"])
+def admin_list_emails():
+    guard = _admin_guard()
+    if guard:
+        return guard
+    from auth import _allowed_emails, admin_emails, current_user
+    emails = sorted(_allowed_emails())
+    admins = admin_emails()
+    return jsonify({
+        "emails": [{"email": e, "is_admin": e in admins} for e in emails],
+        "current_user": (current_user() or {}).get("email"),
+    })
+
+
+@app.route("/api/admin/emails", methods=["POST"])
+def admin_add_email():
+    guard = _admin_guard()
+    if guard:
+        return guard
+    from auth import _allowed_emails, write_allowed_emails
+    data = request.get_json(silent=True) or {}
+    new_email = (data.get("email") or "").strip().lower()
+    if not new_email or "@" not in new_email:
+        return jsonify({"error": "כתובת מייל לא תקינה"}), 400
+    emails = _allowed_emails()
+    if new_email in emails:
+        return jsonify({"error": "המייל כבר ברשימה"}), 400
+    emails.add(new_email)
+    write_allowed_emails(emails)
+    return jsonify({"success": True, "email": new_email})
+
+
+@app.route("/api/admin/emails/<path:email>", methods=["DELETE"])
+def admin_remove_email(email):
+    guard = _admin_guard()
+    if guard:
+        return guard
+    from auth import _allowed_emails, write_allowed_emails, admin_emails, current_user
+    email = email.strip().lower()
+    if email in admin_emails():
+        return jsonify({"error": "אי אפשר למחוק חשבון מנהל מהממשק. ערוך ב-ADMIN_EMAILS אם צריך."}), 400
+    if email == (current_user() or {}).get("email", "").lower():
+        return jsonify({"error": "אי אפשר להסיר את עצמך"}), 400
+    emails = _allowed_emails()
+    if email not in emails:
+        return jsonify({"error": "המייל לא ברשימה"}), 404
+    emails.discard(email)
+    write_allowed_emails(emails)
+    return jsonify({"success": True})
 
 
 @app.route("/api/reports/stats", methods=["GET"])

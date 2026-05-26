@@ -15,8 +15,11 @@ The decorator is also applied automatically to most routes via a
 before_request hook below — see `init_auth()`.
 """
 
+import json
 import os
 from functools import wraps
+from pathlib import Path
+from threading import Lock
 
 from authlib.integrations.flask_client import OAuth
 from flask import (
@@ -33,12 +36,55 @@ oauth = OAuth()
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers — allowed emails persistence
 # ---------------------------------------------------------------------------
 
+_ALLOWED_EMAILS_FILE = Path(os.environ.get("ALLOWED_EMAILS_FILE", "/app/data/allowed_emails.json"))
+_ALLOWED_EMAILS_LOCK = Lock()
+
+
+def _ensure_emails_file() -> None:
+    """If the JSON file doesn't exist yet, seed it from the ALLOWED_EMAILS env var."""
+    if _ALLOWED_EMAILS_FILE.exists():
+        return
+    _ALLOWED_EMAILS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    seed = {e.strip().lower() for e in os.environ.get("ALLOWED_EMAILS", "").split(",") if e.strip()}
+    _ALLOWED_EMAILS_FILE.write_text(json.dumps(sorted(seed), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _allowed_emails() -> set[str]:
-    raw = os.environ.get("ALLOWED_EMAILS", "")
-    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+    """Source of truth: JSON file in the mounted data volume (visible to all gunicorn workers)."""
+    try:
+        _ensure_emails_file()
+        data = json.loads(_ALLOWED_EMAILS_FILE.read_text(encoding="utf-8"))
+        return {str(e).strip().lower() for e in data if str(e).strip()}
+    except Exception:
+        # Fallback to env var if file read fails (corrupt/missing/etc.)
+        raw = os.environ.get("ALLOWED_EMAILS", "")
+        return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def write_allowed_emails(emails: set[str]) -> None:
+    """Replace the entire allowed-emails list atomically. Thread-safe."""
+    with _ALLOWED_EMAILS_LOCK:
+        _ALLOWED_EMAILS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        cleaned = sorted({str(e).strip().lower() for e in emails if str(e).strip()})
+        tmp = _ALLOWED_EMAILS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(_ALLOWED_EMAILS_FILE)
+
+
+def admin_emails() -> set[str]:
+    """Emails allowed to manage the system (access /admin)."""
+    raw = os.environ.get("ADMIN_EMAILS", "")
+    if raw.strip():
+        return {e.strip().lower() for e in raw.split(",") if e.strip()}
+    # Sensible default: the human-managed accounts. Excludes yuvalebel by intent.
+    return {"talyacu@gmail.com", "fistook16@gmail.com", "adonlocker@gmail.com"}
+
+
+def is_admin(email: str | None) -> bool:
+    return bool(email) and email.lower() in admin_emails()
 
 
 def current_user() -> dict | None:
