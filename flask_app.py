@@ -753,12 +753,44 @@ def reports_stats():
 
 @app.route("/api/reports/export", methods=["GET"])
 def reports_export():
-    """Download all faults as an Excel file."""
+    """Download all faults as an Excel file, enriched with student details."""
     import io
     from flask import send_file
     df = pd.read_sql("SELECT * FROM faults ORDER BY created_at DESC", our_engine)
+
+    # Enrich with student name + readable ת.ז from Adon Locker DB
+    students = adon_db.get_all_students()
+    id_to_name = {
+        s["id"]: f"{s.get('fname') or ''} {s.get('lname') or ''}".strip() or "לא ידוע"
+        for s in students
+    }
+    id_to_tz = {s["id"]: s.get("studentId") or "" for s in students}
+    id_to_school = {s["id"]: s.get("school_name") or "" for s in students}
+    df["student_name"] = df["student_id_ext"].map(id_to_name).fillna("לא ידוע")
+    df["student_tz"] = df["student_id_ext"].map(id_to_tz).fillna("")
+    df["student_school"] = df["student_id_ext"].map(id_to_school).fillna("")
+    df = df.drop(columns=["student_id_ext"])
+
+    # Lock type — single SQL pulls every locker's closet type at once
+    from sqlalchemy import text as _sql
+    with adon_db.get_adon_engine().connect() as conn:
+        lock_rows = conn.execute(_sql(
+            'SELECT l.id, c.type FROM "Locker" l JOIN "Closet" c ON c.id = l."closetId"'
+        )).fetchall()
+    id_to_locktype = {
+        r[0]: ("דיגיטלי" if r[1] == "Electronic" else "מכני" if r[1] == "Mechanical" else (r[1] or ""))
+        for r in lock_rows
+    }
+    df["lock_type"] = df["locker_id"].map(id_to_locktype).fillna("")
+
+    # Reorder so identifying info comes first
+    front = ["id", "student_name", "student_tz", "student_school", "locker_id", "lock_type"]
+    df = df[front + [c for c in df.columns if c not in front]]
+
     rename_map = {
-        "id": "מספר תקלה", "student_id_ext": "ת.ז תלמיד", "locker_id": "מזהה לוקר",
+        "id": "מספר תקלה", "student_name": "שם תלמיד",
+        "student_tz": "ת.ז תלמיד", "student_school": "בית ספר",
+        "locker_id": "מזהה לוקר", "lock_type": "סוג מנעול",
         "fault_type": "סוג תקלה", "severity": "חומרה", "books_stuck": "ספרים תקועים",
         "is_urgent": "דחוף", "status": "סטטוס", "description": "תיאור",
         "created_at": "נפתחה ב", "resolved_at": "נסגרה ב",
