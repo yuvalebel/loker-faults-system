@@ -1,0 +1,23 @@
+services:
+  locker-faults:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locker-faults
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.locker-faults.rule=Host(`locker-faults.srv1572400.hstgr.cloud`)
+      - traefik.http.routers.locker-faults.entrypoints=websecure
+      - traefik.http.routers.locker-faults.tls.certresolver=letsencrypt
+      - traefik.http.services.locker-faults.loadbalancer.server.port=5000
