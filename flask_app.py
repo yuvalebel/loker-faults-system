@@ -32,6 +32,10 @@ load_dotenv()
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # Hebrew
 
+# Trust X-Forwarded-* headers from Traefik so url_for(_external=True) builds https URLs
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Wire up Google OAuth + the global before_request login guard.
 # Public paths (/auth/*, /api/health, /static/*) are exempted inside init_auth.
 init_auth(app)
