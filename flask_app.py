@@ -667,6 +667,8 @@ def schedule_technicians():
         tech_assignments = run_scheduling_algorithm(df, num_technicians)
 
         assignments = []
+        # Persist assignments back to the DB so the /technician filter reflects them.
+        fault_by_id = {f.id: f for f in open_faults}
         for tech_name, schools in tech_assignments.items():
             tech_id = int(tech_name.split()[-1])
             total_score = sum(s["priority_score"] for s in schools)
@@ -675,6 +677,10 @@ def schedule_technicians():
             all_faults = []
             for school in schools:
                 all_faults.extend(school["faults"])
+                for f in school["faults"]:
+                    fid = f.get("fault_id")
+                    if fid in fault_by_id:
+                        fault_by_id[fid].assigned_technician = tech_name
 
             assignments.append({
                 "technician_id": tech_id,
@@ -683,6 +689,8 @@ def schedule_technicians():
                 "total_faults": total_faults,
                 "faults": all_faults,
             })
+
+        session.commit()
 
         return jsonify({
             "success": True,
