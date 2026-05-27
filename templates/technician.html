@@ -71,6 +71,10 @@
         <button class="chip" data-status="Closed">סגורות <span class="count" id="cnt-Closed">0</span></button>
         <button class="chip" data-status="all">הכל <span class="count" id="cnt-all">0</span></button>
     </div>
+    <div class="tech-filter-row" style="margin-top: 8px;">
+        <div style="font-size: 0.78rem; color: #6c757d; margin-bottom: 4px; font-weight: 600;">טכנאי:</div>
+        <div class="filter-chips" id="techFilters"></div>
+    </div>
     <div class="search-box">
         <input id="searchInput" type="search" class="form-control form-control-sm" placeholder="חיפוש: שם תלמיד או ת.ז…">
     </div>
@@ -83,8 +87,10 @@
 <script>
 let allFaults = [];
 let activeStatus = 'Open';
+let activeTech = localStorage.getItem('techFilter') || '';  // '' = הכל
 let searchQuery = '';
 let selectedSchool = null;  // null = show school list; otherwise show that school's faults
+const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 async function loadFaults() {
     try {
@@ -92,6 +98,7 @@ async function loadFaults() {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         allFaults = await r.json();
         renderCounts();
+        renderTechChips();
         renderView();
     } catch (e) {
         console.error(e);
@@ -101,17 +108,25 @@ async function loadFaults() {
 }
 
 function renderCounts() {
-    const counts = { Open: 0, Closed: 0, all: allFaults.length };
-    for (const f of allFaults) counts[f.status] = (counts[f.status] || 0) + 1;
+    // Counts respect the active technician filter (so switching tech updates the chip numbers)
+    const techScope = allFaults.filter(f =>
+        activeTech === '' || String(f.assigned_technician || '') === activeTech
+    );
+    const counts = { Open: 0, Closed: 0, all: techScope.length };
+    for (const f of techScope) counts[f.status] = (counts[f.status] || 0) + 1;
     document.getElementById('cnt-Open').textContent = counts.Open;
     document.getElementById('cnt-Closed').textContent = counts.Closed;
     document.getElementById('cnt-all').textContent = counts.all;
-    document.getElementById('totalBadge').textContent = counts.Open + ' פתוחות';
+    const label = activeTech === '' ? 'פתוחות' : `פתוחות (טכנאי ${activeTech})`;
+    document.getElementById('totalBadge').textContent = counts.Open + ' ' + label;
 }
 
 function getFilteredFaults() {
     let faults = allFaults;
     if (activeStatus !== 'all') faults = faults.filter(f => f.status === activeStatus);
+    if (activeTech !== '') {
+        faults = faults.filter(f => String(f.assigned_technician || '') === activeTech);
+    }
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
         faults = faults.filter(f =>
@@ -120,6 +135,35 @@ function getFilteredFaults() {
         );
     }
     return faults;
+}
+
+function renderTechChips() {
+    const cont = document.getElementById('techFilters');
+    const counts = {};
+    for (const f of allFaults) {
+        if (f.status !== 'Open') continue;
+        const key = String(f.assigned_technician || '');
+        if (key) counts[key] = (counts[key] || 0) + 1;
+    }
+    const chips = [`<button class="chip ${activeTech === '' ? 'active' : ''}" data-tech="">הכל</button>`];
+    for (const n of TECH_NUMBERS) {
+        const key = String(n);
+        const cnt = counts[key] || 0;
+        const cls = (activeTech === key ? 'active' : '');
+        chips.push(`<button class="chip ${cls}" data-tech="${key}">${n}${cnt ? ` <span class="count">${cnt}</span>` : ''}</button>`);
+    }
+    cont.innerHTML = chips.join('');
+    cont.querySelectorAll('.chip').forEach(c => {
+        c.addEventListener('click', () => {
+            activeTech = c.dataset.tech;
+            localStorage.setItem('techFilter', activeTech);
+            selectedSchool = null;  // go back to school list when switching tech
+            cont.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+            c.classList.add('active');
+            renderCounts();
+            renderView();
+        });
+    });
 }
 
 function renderView() {
