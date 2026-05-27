@@ -110,7 +110,7 @@ async function loadFaults() {
 function renderCounts() {
     // Counts respect the active technician filter (so switching tech updates the chip numbers)
     const techScope = allFaults.filter(f =>
-        activeTech === '' || String(f.assigned_technician || '') === activeTech
+        activeTech === '' || techNumberOf(f) === activeTech
     );
     const counts = { Open: 0, Closed: 0, all: techScope.length };
     for (const f of techScope) counts[f.status] = (counts[f.status] || 0) + 1;
@@ -121,11 +121,18 @@ function renderCounts() {
     document.getElementById('totalBadge').textContent = counts.Open + ' ' + label;
 }
 
+// Extract a number from assigned_technician, regardless of format ("1", "טכנאי 1", "Tech 2", etc.)
+function techNumberOf(fault) {
+    const raw = String(fault && fault.assigned_technician || '');
+    const m = raw.match(/(\d+)/);
+    return m ? m[1] : '';
+}
+
 function getFilteredFaults() {
     let faults = allFaults;
     if (activeStatus !== 'all') faults = faults.filter(f => f.status === activeStatus);
     if (activeTech !== '') {
-        faults = faults.filter(f => String(f.assigned_technician || '') === activeTech);
+        faults = faults.filter(f => techNumberOf(f) === activeTech);
     }
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -142,7 +149,7 @@ function renderTechChips() {
     const counts = {};
     for (const f of allFaults) {
         if (f.status !== 'Open') continue;
-        const key = String(f.assigned_technician || '');
+        const key = techNumberOf(f);
         if (key) counts[key] = (counts[key] || 0) + 1;
     }
     const chips = [`<button class="chip ${activeTech === '' ? 'active' : ''}" data-tech="">הכל</button>`];
