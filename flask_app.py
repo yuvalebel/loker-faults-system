@@ -351,10 +351,22 @@ def update_fault_with_notes():
 
 def run_scheduling_algorithm(faults_df, num_technicians):
     """
-    3-Stage Scheduling Algorithm (Strict Region Exhaustion).
-    Phase 1: anchor seeding by top priority schools.
-    Phase 2: each tech absorbs all unassigned schools in their primary region.
-    Phase 3: any leftovers go to the most idle tech globally.
+    Weighted Engineering Heuristic for technician assignment.
+
+    Priority Score (per school) = 0.35*N + 0.25*U + 0.25*T + 0.15*R
+      N  — Batching (35%): clustered faults at one school amortise travel (Benjaafar)
+      U  — RCM (25%): functional severity (1=aesthetic, 5=blocking) (WBDG)
+      T  — Max-Min Fairness (25%): wait time builds priority (Ghaderi)
+      R  — Service Recovery (15%): recurring failures get a boost (Matos)
+
+    TOC override (Theory of Constraints): if any fault at the school is
+    `books_stuck` OR `is_urgent`, score is set to a sentinel that forces
+    that school to the front of the queue.
+
+    Assignment is then done in three phases:
+      Phase 1 — anchor each tech to the next-highest-scoring school
+      Phase 2 — each tech absorbs all unassigned schools in their region
+      Phase 3 — overflow goes to the least-loaded tech
     """
     if faults_df.empty:
         return {}
@@ -370,17 +382,23 @@ def run_scheduling_algorithm(faults_df, num_technicians):
         "age_days": "max",
         "is_recurring": "max",
         "is_urgent": "max",
+        "books_stuck": "max",
         "region": "first",
     }).reset_index()
 
     school_metrics.columns = [
         "school_name", "fault_count", "avg_severity", "max_age_days",
-        "has_recurring", "has_urgent", "region",
+        "has_recurring", "has_urgent", "has_books_stuck", "region",
     ]
 
+    # Normalise each component to a [1, 5] scale so weights are comparable.
     school_metrics["N"] = school_metrics["fault_count"].apply(lambda x: min(x, 5))
     school_metrics["U"] = school_metrics["avg_severity"]
-    school_metrics["T"] = school_metrics["max_age_days"].apply(lambda x: min(max(x, 1), 5))
+    # Fairness: 12-day gradient instead of 5 — gives meaningful priority growth
+    # across a full school fortnight before saturating.
+    school_metrics["T"] = school_metrics["max_age_days"].apply(
+        lambda x: min(1 + (max(x, 0) / 3), 5)
+    )
     school_metrics["R"] = school_metrics["has_recurring"].apply(lambda x: 5 if x else 1)
 
     school_metrics["priority_score"] = (
@@ -389,7 +407,10 @@ def run_scheduling_algorithm(faults_df, num_technicians):
         + 0.25 * school_metrics["T"]
         + 0.15 * school_metrics["R"]
     )
-    school_metrics.loc[school_metrics["has_urgent"] == True, "priority_score"] = 10000
+    # TOC override: blockers (books locked inside the locker, or marked urgent)
+    # jump the entire queue regardless of other components.
+    toc_blocker = (school_metrics["has_urgent"] == True) | (school_metrics["has_books_stuck"] == True)
+    school_metrics.loc[toc_blocker, "priority_score"] = 10000
 
     school_metrics = school_metrics.sort_values("priority_score", ascending=False).reset_index(drop=True)
     school_metrics["assigned"] = False
@@ -399,7 +420,7 @@ def run_scheduling_algorithm(faults_df, num_technicians):
     tech_primary_region = {}
 
     for i in range(1, num_technicians + 1):
-        tech_name = f"Technician {i}"
+        tech_name = f"טכנאי {i}"
         assignments[tech_name] = []
         technician_workload[tech_name] = 0
         tech_primary_region[tech_name] = None
@@ -411,7 +432,7 @@ def run_scheduling_algorithm(faults_df, num_technicians):
     num_anchors = min(num_technicians, len(school_metrics))
     for i in range(num_anchors):
         school = school_metrics.iloc[i]
-        tech_name = f"Technician {i + 1}"
+        tech_name = f"טכנאי {i + 1}"
         school_name = school["school_name"]
         region = school["region"]
         num_faults = school["fault_count"]
