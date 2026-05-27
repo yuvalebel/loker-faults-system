@@ -259,7 +259,8 @@ function renderCard(f) {
 }
 
 async function updateStatus(faultId, newStatus) {
-    const confirmMsg = newStatus === 'Closed' ? 'לסגור את התקלה?' : 'לפתוח את התקלה מחדש?';
+    const fault = allFaults.find(f => f.id === faultId);
+    const confirmMsg = newStatus === 'Closed' ? 'לסגור את התקלה? תיפתח חלון WhatsApp לשליחת הודעה להורה.' : 'לפתוח את התקלה מחדש?';
     if (!confirm(confirmMsg)) return;
     try {
         const r = await fetch('/api/update_status', {
@@ -268,10 +269,58 @@ async function updateStatus(faultId, newStatus) {
             body: JSON.stringify({fault_id: faultId, status: newStatus})
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
+
+        // After a successful close, fire a WhatsApp message to the parent.
+        if (newStatus === 'Closed' && fault && fault.parentPhone) {
+            await sendCloseNotification(fault);
+        }
+
         await loadFaults();
     } catch (e) {
         alert('שגיאה בעדכון: ' + e.message);
     }
+}
+
+async function sendCloseNotification(fault) {
+    // Re-fetch the locker so the parent gets the CURRENT code (in case it was edited).
+    let locker = fault.locker_info || {};
+    if (fault.locker_id) {
+        try {
+            const r = await fetch('/api/locker/' + encodeURIComponent(fault.locker_id));
+            if (r.ok) {
+                const data = await r.json();
+                if (data && data.locker) locker = data.locker;
+            }
+        } catch (e) {
+            console.warn('Could not refresh locker info; using cached', e);
+        }
+    }
+
+    const lockType = locker.lock_type === 'digital' ? 'דיגיטלי'
+                   : locker.lock_type === 'mechanical' ? 'מכני'
+                   : '';
+    const code = lockType === 'מכני'
+        ? (locker.master_code || locker.lock_number || '')
+        : (locker.student_code || '');
+
+    const lines = [
+        'שלום!',
+        '',
+        `הלוקר של ${fault.student_name || ''} טופל ואפשר להשתמש בו שוב.`,
+        '',
+        '📍 בית ספר: ' + (fault.school_name || ''),
+        '🗄 ארון: ' + (locker.cabinet_name || ''),
+        '🔢 תא: ' + (locker.cell_number || ''),
+    ];
+    if (code) lines.push('🔑 קוד: ' + code);
+    lines.push('');
+    lines.push('בהצלחה,');
+    lines.push('אדון לוקר');
+
+    const message = lines.join('\n');
+    const phone = cleanPhone(fault.parentPhone);
+    const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+    window.open(url, '_blank');
 }
 
 function cleanPhone(p) {
