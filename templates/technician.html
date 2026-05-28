@@ -89,7 +89,8 @@ let allFaults = [];
 let activeStatus = 'Open';
 let activeTech = localStorage.getItem('techFilter') || '';  // '' = הכל
 let searchQuery = '';
-let selectedSchool = null;  // null = show school list; otherwise show that school's faults
+let selectedSchool = null;   // null = show school list
+let selectedCabinet = null;  // null = show cabinet list for selected school; otherwise show faults for that cabinet
 const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 async function loadFaults() {
@@ -165,6 +166,7 @@ function renderTechChips() {
             activeTech = c.dataset.tech;
             localStorage.setItem('techFilter', activeTech);
             selectedSchool = null;  // go back to school list when switching tech
+            selectedCabinet = null;
             cont.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
             c.classList.add('active');
             renderCounts();
@@ -176,8 +178,10 @@ function renderTechChips() {
 function renderView() {
     if (selectedSchool === null) {
         renderSchoolList();
+    } else if (selectedCabinet === null) {
+        renderCabinetList(selectedSchool);
     } else {
-        renderFaultsForSchool(selectedSchool);
+        renderFaultsForCabinet(selectedSchool, selectedCabinet);
     }
 }
 
@@ -217,24 +221,65 @@ function renderSchoolList() {
     });
 }
 
-function renderFaultsForSchool(schoolName) {
+function renderCabinetList(schoolName) {
+    const cont = document.getElementById('cardsContainer');
+    const schoolFaults = getFilteredFaults()
+        .filter(f => (f.school_name || 'לא ידוע') === schoolName);
+
+    // Group by cabinet, count total + urgent
+    const groups = {};
+    for (const f of schoolFaults) {
+        const cab = (f.locker_info && f.locker_info.cabinet_name) || 'ללא מתחם';
+        if (!groups[cab]) groups[cab] = { total: 0, urgent: 0 };
+        groups[cab].total += 1;
+        if (f.is_urgent || f.books_stuck) groups[cab].urgent += 1;
+    }
+    // Sort by total descending; tie-break alphabetically
+    const cabinets = Object.entries(groups).sort((a, b) => {
+        if (b[1].total !== a[1].total) return b[1].total - a[1].total;
+        return a[0].localeCompare(b[0], 'he');
+    });
+
+    let html = `<div class="school-header">
+        <button class="back-btn" onclick="backToSchools()"><i class="bi bi-arrow-right"></i> חזרה</button>
+        <h2>${esc(schoolName)}</h2>
+    </div>`;
+
+    if (cabinets.length === 0) {
+        html += '<div class="empty-list"><i class="bi bi-inbox"></i><div>אין תקלות להצגה</div></div>';
+    } else {
+        html += cabinets.map(([name, info]) => {
+            const badgeCls = info.urgent > 0 ? 'school-count urgent' : 'school-count';
+            return `<button class="school-card" data-cabinet="${esc(name)}">
+                <div>
+                    <div class="school-name">${esc(name)}</div>
+                    ${info.urgent > 0 ? `<div style="font-size:0.78rem; color:#e53935; margin-top:2px;"><i class="bi bi-fire"></i> ${info.urgent} דחופות</div>` : ''}
+                </div>
+                <span class="${badgeCls}">${info.total}</span>
+            </button>`;
+        }).join('');
+    }
+    cont.innerHTML = html;
+
+    cont.querySelectorAll('.school-card').forEach(btn => {
+        btn.addEventListener('click', () => selectCabinet(btn.dataset.cabinet));
+    });
+}
+
+function renderFaultsForCabinet(schoolName, cabinetName) {
     const cont = document.getElementById('cardsContainer');
     const faults = getFilteredFaults()
         .filter(f => (f.school_name || 'לא ידוע') === schoolName)
+        .filter(f => ((f.locker_info && f.locker_info.cabinet_name) || 'ללא מתחם') === cabinetName)
         .sort((a, b) => {
-            const ca = (a.locker_info && a.locker_info.cabinet_name) || '';
-            const cb = (b.locker_info && b.locker_info.cabinet_name) || '';
-            const cmp = ca.localeCompare(cb, 'he');
-            if (cmp !== 0) return cmp;
-            // Same cabinet: sort by cell number
             const na = parseInt((a.locker_info && a.locker_info.cell_number) || 0);
             const nb = parseInt((b.locker_info && b.locker_info.cell_number) || 0);
             return na - nb;
         });
 
     let html = `<div class="school-header">
-        <button class="back-btn" onclick="backToSchools()"><i class="bi bi-arrow-right"></i> חזרה</button>
-        <h2>${esc(schoolName)}</h2>
+        <button class="back-btn" onclick="backToCabinets()"><i class="bi bi-arrow-right"></i> חזרה</button>
+        <h2>${esc(schoolName)} • ${esc(cabinetName)}</h2>
     </div>`;
 
     if (faults.length === 0) {
@@ -247,12 +292,26 @@ function renderFaultsForSchool(schoolName) {
 
 function selectSchool(name) {
     selectedSchool = name;
+    selectedCabinet = null;
+    window.scrollTo(0, 0);
+    renderView();
+}
+
+function selectCabinet(name) {
+    selectedCabinet = name;
     window.scrollTo(0, 0);
     renderView();
 }
 
 function backToSchools() {
     selectedSchool = null;
+    selectedCabinet = null;
+    window.scrollTo(0, 0);
+    renderView();
+}
+
+function backToCabinets() {
+    selectedCabinet = null;
     window.scrollTo(0, 0);
     renderView();
 }

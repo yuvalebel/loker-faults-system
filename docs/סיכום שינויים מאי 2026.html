@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>סיכום שינויים — מערכת אדון לוקר תקלות (מאי 2026)</title>
+<style>
+:root {
+    --primary: #1a237e;
+    --accent: #3949ab;
+    --bg: #f4f6fa;
+    --card: #fff;
+    --border: #e0e4ec;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg);
+    font-family: 'Segoe UI', 'Heebo', Arial, sans-serif;
+    color: var(--text);
+    line-height: 1.7;
+    margin: 0;
+    padding: 24px;
+}
+.container {
+    max-width: 980px;
+    margin: 0 auto;
+}
+header.hero {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: #fff;
+    padding: 36px 32px;
+    border-radius: 14px;
+    margin-bottom: 28px;
+    box-shadow: 0 4px 16px rgba(26, 35, 126, 0.18);
+}
+header.hero h1 {
+    margin: 0 0 12px 0;
+    font-size: 1.9rem;
+    font-weight: 700;
+}
+header.hero .meta {
+    font-size: 0.98rem;
+    opacity: 0.9;
+    margin: 4px 0;
+}
+header.hero a.url {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    margin-top: 14px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+header.hero a.url:hover { background: rgba(255, 255, 255, 0.28); }
+.stat-strip {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+}
+.stat-card {
+    flex: 1;
+    min-width: 180px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 18px 22px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    border-right: 4px solid var(--accent);
+}
+.stat-card .label { font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.stat-card .value { font-size: 1.6rem; font-weight: 700; color: var(--primary); }
+section.block {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+section.block h2 {
+    color: var(--primary);
+    font-size: 1.4rem;
+    margin: 0 0 16px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+section.block h2 .num {
+    background: var(--accent);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+section.block h3 {
+    color: var(--accent);
+    font-size: 1.08rem;
+    margin: 22px 0 8px 0;
+    font-weight: 600;
+}
+section.block h3:first-of-type { margin-top: 0; }
+ul, ol { padding-right: 24px; padding-left: 0; }
+ul li, ol li { margin-bottom: 6px; }
+ul.checklist { list-style: none; padding: 0; }
+ul.checklist li {
+    padding: 6px 0;
+    padding-right: 28px;
+    position: relative;
+}
+ul.checklist li::before {
+    content: '✓';
+    position: absolute;
+    right: 0;
+    top: 6px;
+    color: var(--success);
+    font-weight: 700;
+}
+code, .mono {
+    background: #eef1f7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.92em;
+    color: #5b21b6;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+}
+table th, table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+}
+table th {
+    background: #f4f6fa;
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+table td.right-num { text-align: left; font-family: monospace; }
+.callout {
+    border-right: 4px solid var(--accent);
+    background: #f8fafc;
+    padding: 12px 18px;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+.callout.danger { border-color: var(--danger); background: #fef2f2; }
+.callout.warning { border-color: var(--warning); background: #fff7ed; }
+.callout strong { color: var(--primary); }
+.callout.danger strong { color: var(--danger); }
+.callout.warning strong { color: var(--warning); }
+.tag {
+    display: inline-block;
+    background: var(--bg);
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-left: 4px;
+}
+.tag.danger { background: #fee2e2; color: var(--danger); }
+.tag.warning { background: #ffedd5; color: var(--warning); }
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 14px 0;
+}
+.feature-card {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+}
+.feature-card .title {
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+}
+.feature-card .desc { font-size: 0.92rem; color: var(--text); }
+.commits-table {
+    font-size: 0.88rem;
+}
+.commits-table td.hash {
+    font-family: monospace;
+    color: var(--muted);
+    width: 80px;
+}
+.commits-table td.date {
+    color: var(--muted);
+    width: 70px;
+    text-align: center;
+}
+footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-top: 28px;
+    padding: 18px;
+}
+@media print {
+    body { background: #fff; padding: 0; font-size: 11pt; }
+    header.hero { background: var(--primary) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; }
+    section.block, .stat-card, .feature-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+    section.block { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+    <h1>📋 סיכום שינויים — מערכת אדון לוקר תקלות</h1>
+    <div class="meta"><strong>תקופה:</strong> 25–27 במאי 2026</div>
+    <div class="meta"><strong>גרסה לפני:</strong> מערכת מקומית בלבד, ללא חיבור ל‑Adon Locker DB, ללא לוגין, ללא ענן</div>
+    <div class="meta"><strong>גרסה אחרי:</strong> מערכת פרודקשן חיה עם 4 דפי שירות ואלגוריתם תעדוף משוקלל</div>
+    <a class="url" href="https://locker-faults.srv1572400.hstgr.cloud" target="_blank">🌐 locker-faults.srv1572400.hstgr.cloud</a>
+</header>
+
+<div class="stat-strip">
+    <div class="stat-card"><div class="label">פושים ל‑main</div><div class="value">18</div></div>
+    <div class="stat-card"><div class="label">שורות קוד חדשות</div><div class="value">~1,200</div></div>
+    <div class="stat-card"><div class="label">דפי שירות חדשים</div><div class="value">4</div></div>
+    <div class="stat-card"><div class="label">תיקוני באגים</div><div class="value">5</div></div>
+</div>
+
+<!-- 1. תשתית ופריסה -->
+<section class="block">
+    <h2><span class="num">1</span> תשתית ופריסה</h2>
+
+    <h3>חיבור ל‑DB של נתנאל (Adon Locker)</h3>
+    <ul>
+        <li>חיבור ל‑Supabase של נתנאל במצב Read‑Only עם משתמש <code>readonly_user</code></li>
+        <li>העשרת כל endpoint שמחזיר תקלות בפרטי תלמיד (שם, ת.ז, בית ספר, טלפון הורה) באופן חי</li>
+        <li>העשרת לוקרים בפרטים: ארון, תא, סוג נעילה, קוד תלמיד, קוד מאסטר, מספר מנעול</li>
+        <li>Cache של 60 שניות בזיכרון כדי לא להעמיס על Supabase</li>
+    </ul>
+    <div class="callout">
+        <strong>נמצאו במערכת של נתנאל:</strong> 14,865 תלמידים, 15,188 לוקרים, 49 בתי ספר, 1,538 ארונות, 22,756 מנעולים.
+    </div>
+
+    <h3>פריסה לענן — OpenClaw VPS</h3>
+    <ul>
+        <li>בניית <code>Dockerfile</code> עם Python 3.11 + gunicorn (2 workers, פורט 5000)</li>
+        <li>בניית <code>docker-compose.yml</code> עם labels של Traefik ל‑HTTPS אוטומטי (Let's Encrypt)</li>
+        <li>מיקום בשרת: <code>/docker/locker-faults/</code></li>
+        <li>Volume לקובץ ה‑SQLite כך שלא נמחק בעת בנייה מחודשת</li>
+        <li>הרצה מתחת ל‑Traefik הקיים — באותו דפוס של פרויקטים אחרים (VRPTW)</li>
+    </ul>
+
+    <h3>כניסה מאובטחת — Google OAuth</h3>
+    <ul>
+        <li>חיבור Authlib עם OAuth 2.0 מול Google</li>
+        <li>רשימת מיילים מורשים נשלפת מקובץ JSON — לא מ‑ENV</li>
+        <li>ALLOWED_EMAILS פעילים: טליה, יובל, Shilo, adonlocker</li>
+        <li>הגדרת test users ב‑Google Cloud Console + redirect URI לפרודקשן</li>
+    </ul>
+
+    <h3>פתרון בעיית IPv6</h3>
+    <div class="callout warning">
+        <strong>הבעיה:</strong> חיבור Supabase ישיר נכשל מתוך Docker (השרת לא תומך ב‑IPv6).<br>
+        <strong>הפתרון:</strong> מעבר ל‑Supabase Session Pooler (IPv4) עם פורמט משתמש מיוחד <code>&lt;role&gt;.&lt;project-ref&gt;</code>.
+    </div>
+    <ul>
+        <li>בנוסף: <code>ProxyFix</code> ל‑Flask כדי שיכיר ב‑HTTPS דרך Traefik (אחרת OAuth redirect URL נבנה כ‑HTTP ולא תואם לרישום בגוגל)</li>
+    </ul>
+</section>
+
+<!-- 2. פיצ'רים חדשים -->
+<section class="block">
+    <h2><span class="num">2</span> פיצ'רים חדשים</h2>
+
+    <h3>📊 מסך דוחות וניתוח — <code>/reports</code></h3>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="title">4 כרטיסי KPI</div>
+            <div class="desc">סה"כ תקלות, פתוחות, סגורות, דחופות פתוחות</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">תרשים עוגה</div>
+            <div class="desc">התפלגות לפי סוג תקלה</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">תרשימי עמודות</div>
+            <div class="desc">לפי חומרה, לפי חודש (12 אחרונים), לפי בית ספר</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">טבלת טכנאים</div>
+            <div class="desc">תקלות פתוחות לפי טכנאי</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">סינון לפי בית ספר</div>
+            <div class="desc">dropdown — כל הדוח מתעדכן מיידית</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">כפתור הדפסה</div>
+            <div class="desc">CSS מותאם, מסתיר ניווט וכפתורים</div>
+        </div>
+    </div>
+    <div class="callout">
+        <strong>ייצוא לאקסל:</strong> כל התקלות + עמודות חדשות — <em>שם תלמיד, בית ספר, סוג מנעול</em> — משולפים חי מ‑Supabase של נתנאל בכל הורדה.
+    </div>
+
+    <h3>📱 מסך טכנאי — <code>/technician</code></h3>
+    <ul>
+        <li>ממשק מותאם לסלולרי (כרטיסים, לא טבלה)</li>
+        <li><strong>שלב 1:</strong> רשימת בתי ספר עם כמות התקלות בכל אחד</li>
+        <li><strong>שלב 2:</strong> לחיצה על בית ספר → תקלות ממוינות לפי שם ארון, ואז לפי מספר תא</li>
+        <li>כל כרטיס: שם תלמיד, ת.ז, ארון, תא, סוג מנעול, <strong>קוד מאסטר/תלמיד מודגש</strong>, תיאור, דגלי דחיפות/חוזרת</li>
+        <li>כפתורי פעולה גדולים: סגור / WhatsApp להורה / טלפון</li>
+        <li>שורת סינון לפי מספר טכנאי (1–10) — הבחירה נשמרת ב‑localStorage</li>
+        <li>חיפוש לפי שם או ת.ז</li>
+        <li>רענון אוטומטי כל דקה</li>
+        <li>כפתור "חזרה למערכת" בכותרת</li>
+    </ul>
+
+    <h3>💬 שליחת WhatsApp בסגירת תקלה</h3>
+    <div class="callout">
+        <strong>הזרימה:</strong> טכנאי לוחץ "סגור" → התקלה נסגרת → <strong>קוד עדכני</strong> של הלוקר נשלף מ‑Adon Locker (לא הישן) → WhatsApp נפתח עם הודעה מוכנה למספר ההורה → הטכנאי לוחץ "שלח".
+    </div>
+    <p><strong>תוכן ההודעה:</strong> "הלוקר של [שם] טופל ואפשר להשתמש בו שוב" + פרטי בית ספר, ארון, תא, וקוד.</p>
+    <p>אם להורה אין מספר ב‑DB — התקלה פשוט נסגרת בלי WhatsApp.</p>
+
+    <h3>⚙️ ממשק ניהול מיילים — <code>/admin</code></h3>
+    <ul>
+        <li>הוספה והסרה של מיילים מורשים בלי SSH</li>
+        <li>קובץ <code>data/allowed_emails.json</code> — שיתוף בין כל ה‑workers</li>
+        <li>הגנות: אי אפשר להסיר מנהל / את עצמך</li>
+        <li>תזכורת בולטת לצורך להוסיף גם ב‑Google Cloud Test Users (שני שערים)</li>
+        <li>גישה מוגבלת לאדמינים (<code>ADMIN_EMAILS</code>)</li>
+    </ul>
+
+    <h3>🔍 סינון, חיפוש, ופעולות בכמות — בטאב "ניהול תקלות"</h3>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="title">חיפוש מורחב</div>
+            <div class="desc">לפי שם תלמיד או ת.ז (לא רק שם)</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">מסננים חדשים</div>
+            <div class="desc">בית ספר, סוג תקלה, חומרה (1–5), טווח תאריכים</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">פעולות בכמות</div>
+            <div class="desc">צ'קבוקסים בכל שורה + סרגל "סגור שנבחרו"</div>
+        </div>
+        <div class="feature-card">
+            <div class="title">ספירות חיות</div>
+            <div class="desc">סה"כ / פתוחות / סגורות / דחופות מתעדכנות לפי הסינון</div>
+        </div>
+    </div>
+</section>
+
+<!-- 3. אלגוריתם תעדוף -->
+<section class="block">
+    <h2><span class="num">3</span> שיפורים באלגוריתם תעדוף הטכנאים</h2>
+
+    <h3>יישור עם המתודולוגיה האקדמית (קבוצה 41)</h3>
+    <table>
+        <thead><tr><th>סימן</th><th>רכיב</th><th>משקל</th><th>מקור אקדמי</th></tr></thead>
+        <tbody>
+            <tr><td><strong>N</strong></td><td>Batching — כמות תקלות בבית ספר</td><td>35%</td><td>Benjaafar</td></tr>
+            <tr><td><strong>U</strong></td><td>RCM — חומרה תפקודית</td><td>25%</td><td>WBDG</td></tr>
+            <tr><td><strong>T</strong></td><td>Max-Min Fairness — זמן המתנה</td><td>25%</td><td>Ghaderi</td></tr>
+            <tr><td><strong>R</strong></td><td>Service Recovery — תקלות חוזרות</td><td>15%</td><td>Matos</td></tr>
+        </tbody>
+    </table>
+    <div class="callout warning">
+        <strong>TOC override</strong> (Theory of Constraints): תקלה עם <code>books_stuck=True</code> או <code>is_urgent=True</code> עוקפת את התור — ציון 10,000.
+    </div>
+    <ul>
+        <li>הרחבת גרדיאנט T מ‑5 ימים ל‑12 ימים (גידול עדין במשך כל שבועיים)</li>
+        <li>שמות טכנאים בעברית "טכנאי N" — תואם לפורמט שכבר היה ב‑DB</li>
+    </ul>
+
+    <h3>שמירת חלוקה ב‑DB</h3>
+    <div class="callout">
+        <strong>לפני:</strong> <code>/api/schedule</code> רק הציג חלוקה — לא שמר אותה.<br>
+        <strong>אחרי:</strong> לחיצה על "תזמן" שומרת <code>assigned_technician = "טכנאי N"</code> בכל תקלה.
+    </div>
+    <p>כך מסך הטכנאי יכול לסנן לפי החלוקה שטליה עשתה.</p>
+</section>
+
+<!-- 4. תיקוני באגים -->
+<section class="block">
+    <h2><span class="num">4</span> תיקוני באגים</h2>
+
+    <h3>🐛 NaN שובר את הפרונט</h3>
+    <p><strong>בעיה:</strong> Python שלח <code>NaN</code> ב‑JSON (לא תקני), הדפדפן קרס ב‑JSON.parse → "שגיאה בטעינת תלמידים".</p>
+    <p><strong>פתרון:</strong> המרת NaN ל‑null לפני שליחה (פנדס <code>to_json → loads</code>).</p>
+
+    <h3>🐛 OAuth redirect_uri_mismatch</h3>
+    <p><strong>בעיה:</strong> Flask מאחורי Traefik בנה callback URL עם <code>http://...</code> (לא https) → גוגל דחתה.</p>
+    <p><strong>פתרון:</strong> הוספת ProxyFix שלימדה את Flask להכיר ב‑<code>X-Forwarded-Proto</code>.</p>
+
+    <h3>🐛 לחיצה על כרטיס בית ספר במסך טכנאי</h3>
+    <p><strong>בעיה:</strong> שמות עברית עם גרשיים (כמו "מקיף ז' רביבים") שברו את ה‑HTML attribute של onclick.</p>
+    <p><strong>פתרון:</strong> מעבר ל‑event delegation עם data‑attribute.</p>
+
+    <h3>🐛 חוסר עקביות בשמות טכנאים</h3>
+    <p><strong>בעיה:</strong> האלגוריתם כתב "Technician 1" באנגלית, אבל ה‑Dispatcher הקיים כתב "טכנאי 1" בעברית — סינון לא עבד.</p>
+    <p><strong>פתרון:</strong> שמות בעברית מהאלגוריתם + regex בפרונט שמזהה את שתי הצורות.</p>
+
+    <h3>🐛 Force push לדריסת הקוד הישן של יובל</h3>
+    <p>בעת תחילת המעבר ל‑Supabase, יובל היה דחף קוד חדש לאחר העבודה הישנה. אחרי שיחה ואישור — דחיפה כפויה דרסה את הקוד הישן שלו. היום הקוד החדש הוא הקוד הראשי.</p>
+</section>
+
+<!-- 5. נתונים לבדיקה -->
+<section class="block">
+    <h2><span class="num">5</span> נתונים לבדיקה</h2>
+    <ul>
+        <li>8 תקלות אקראיות הוזרקו לבית הספר "מקיף ז' רביבים" עם פיזור חומרות וסוגי תקלה</li>
+        <li>אחרי תזמון, כולן הוקצו ל‑3 טכנאים (1, 2, 3) לבדיקת הסינון</li>
+    </ul>
+</section>
+
+<!-- 6. משימות פתוחות -->
+<section class="block">
+    <h2><span class="num">6</span> משימות פתוחות</h2>
+
+    <h3><span class="tag danger">דחוף</span></h3>
+    <div class="callout danger">
+        🔴 <strong>החלפת סיסמת <code>readonly_user</code></strong> ב‑Supabase של נתנאל — נחשפה בלוגים בעת ההתחלה. צריך לבקש מנתנאל וליישם.
+    </div>
+
+    <h3><span class="tag warning">עדיפות בינונית</span></h3>
+    <ul>
+        <li>⚠️ <strong>גיבוי יומי</strong> של <code>faults_system.db</code> ל‑Google Drive — שלום נפשי במקרה של תקלת שרת</li>
+        <li>⚠️ <strong>חיבור Digital 99</strong> — שליחת WhatsApp ממספר אדון לוקר (לא של הטכנאי), כולל לוגיקה למניעת תגובת בוט</li>
+        <li>⚠️ <strong>66% מהלוקרים המכניים בלי <code>userCode</code></strong> — לשאול את נתנאל אם זה מכוון</li>
+    </ul>
+
+    <h3>רעיונות לעתיד (לא הוסכמו)</h3>
+    <ul>
+        <li>מדד WSEI על הדשבורד (יישום המדד האקדמי בקוד)</li>
+        <li>Audit log לתקלות (מי שינה מה ומתי)</li>
+        <li>סיכום יומי בוואטסאפ/מייל לטליה</li>
+        <li>QR code פיזי על לוקרים → טופס תקלה ממולא מראש</li>
+        <li>העלאת תמונות לתקלות</li>
+        <li>דף סטטוס פתוח להורה (URL ייחודי לכל תקלה)</li>
+    </ul>
+</section>
+
+<!-- נספח -->
+<section class="block">
+    <h2>📋 נספח: רשימת ה‑commits</h2>
+    <table class="commits-table">
+        <thead><tr><th>Hash</th><th>תאריך</th><th>תיאור</th></tr></thead>
+        <tbody>
+            <tr><td class="hash">fdf5d16</td><td class="date">27/5</td><td>תעדוף טכנאים: יישור מלא למתודולוגיה האקדמית</td></tr>
+            <tr><td class="hash">76d40c3</td><td class="date">27/5</td><td>/api/schedule שומר את ההקצאות ל‑DB</td></tr>
+            <tr><td class="hash">ea0d26b</td><td class="date">27/5</td><td>זיהוי 'טכנאי N' / 'Technician N'</td></tr>
+            <tr><td class="hash">c05f65c</td><td class="date">27/5</td><td>סינון לפי מספר טכנאי (1–10)</td></tr>
+            <tr><td class="hash">b42f52c</td><td class="date">27/5</td><td>סגירת תקלה → WhatsApp להורה</td></tr>
+            <tr><td class="hash">6bfd3ec</td><td class="date">26/5</td><td>ספירות מכבדות את הסינון</td></tr>
+            <tr><td class="hash">11ce956</td><td class="date">26/5</td><td>סינון לפי בית ספר בטאב ניהול</td></tr>
+            <tr><td class="hash">8a2535f</td><td class="date">26/5</td><td>כפתור 'חזרה למערכת'</td></tr>
+            <tr><td class="hash">08c4e2a</td><td class="date">26/5</td><td>תיקון לחיצה על כרטיס בית ספר</td></tr>
+            <tr><td class="hash">0300723</td><td class="date">26/5</td><td>חיפוש+סינון מורחב, פעולות בכמות, ניהול מיילים, מסך טכנאי מחודש</td></tr>
+            <tr><td class="hash">b2a761b</td><td class="date">26/5</td><td>תצוגת מובייל לטכנאים</td></tr>
+            <tr><td class="hash">25b0164</td><td class="date">26/5</td><td>דוחות: סינון + תרשים בית ספר</td></tr>
+            <tr><td class="hash">b89b461</td><td class="date">26/5</td><td>ייצוא Excel + עמודות חדשות</td></tr>
+            <tr><td class="hash">b2c706b</td><td class="date">26/5</td><td>דוחות וניתוח: דשבורד + ייצוא לאקסל</td></tr>
+            <tr><td class="hash">208f4d0</td><td class="date">26/5</td><td>תיקון NaN ב‑JSON</td></tr>
+            <tr><td class="hash">7893b40</td><td class="date">26/5</td><td>תיקון OAuth מאחורי Traefik</td></tr>
+            <tr><td class="hash">e33391b</td><td class="date">26/5</td><td>פריסה ל‑OpenClaw: Dockerfile + docker-compose</td></tr>
+            <tr><td class="hash">d55641a</td><td class="date">25/5</td><td>מעבר ל‑Supabase + הוספת Google OAuth</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<footer>
+    סיכום נוצר 27/5/2026 · אדון לוקר · מערכת ניהול תקלות
+</footer>
+
+</div>
+</body>
+</html>
