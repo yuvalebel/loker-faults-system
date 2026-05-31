@@ -89,9 +89,19 @@ let allFaults = [];
 let activeStatus = 'Open';
 let activeTech = localStorage.getItem('techFilter') || '';  // '' = הכל
 let searchQuery = '';
-let selectedSchool = null;   // null = show school list
+let selectedSchool = null;   // null = show school list. Holds the *normalized* compound name (e.g. "עינב"), not the raw "עינב 1".
 let selectedCabinet = null;  // null = show cabinet list for selected school; otherwise show faults for that cabinet
 const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// Compound (מתחם) name = school name with the trailing building suffix removed.
+// In Netanel's DB schools are stored as "עינב 1", "עינב 3" etc — Talia treats those
+// as buildings inside the same compound "עינב". Names without a trailing number
+// (e.g. "מקיף ז' רביבים") are returned unchanged.
+function normalizeSchoolName(name) {
+    const s = String(name || '').trim();
+    if (!s) return 'לא ידוע';
+    return s.replace(/\s+\d+\s*$/, '').trim() || s;
+}
 
 async function loadFaults() {
     try {
@@ -189,10 +199,10 @@ function renderSchoolList() {
     const cont = document.getElementById('cardsContainer');
     const faults = getFilteredFaults();
 
-    // Group by school, count total + urgent
+    // Group by *compound* (normalized school name) so "עינב 1" + "עינב 3" appear as one "עינב" row.
     const groups = {};
     for (const f of faults) {
-        const name = f.school_name || 'לא ידוע';
+        const name = normalizeSchoolName(f.school_name);
         if (!groups[name]) groups[name] = { total: 0, urgent: 0 };
         groups[name].total += 1;
         if (f.is_urgent || f.books_stuck) groups[name].urgent += 1;
@@ -223,8 +233,9 @@ function renderSchoolList() {
 
 function renderCabinetList(schoolName) {
     const cont = document.getElementById('cardsContainer');
+    // schoolName is the normalized compound (e.g. "עינב") — match all sub-schools that normalize to it.
     const schoolFaults = getFilteredFaults()
-        .filter(f => (f.school_name || 'לא ידוע') === schoolName);
+        .filter(f => normalizeSchoolName(f.school_name) === schoolName);
 
     // Group by cabinet, count total + urgent
     const groups = {};
@@ -269,7 +280,7 @@ function renderCabinetList(schoolName) {
 function renderFaultsForCabinet(schoolName, cabinetName) {
     const cont = document.getElementById('cardsContainer');
     const faults = getFilteredFaults()
-        .filter(f => (f.school_name || 'לא ידוע') === schoolName)
+        .filter(f => normalizeSchoolName(f.school_name) === schoolName)
         .filter(f => ((f.locker_info && f.locker_info.cabinet_name) || 'ללא מתחם') === cabinetName)
         .sort((a, b) => {
             const na = parseInt((a.locker_info && a.locker_info.cell_number) || 0);
@@ -324,8 +335,11 @@ function renderCard(f) {
 
     const li = f.locker_info || {};
     const lockType = li.lock_type === 'digital' ? 'דיגיטלי' : li.lock_type === 'mechanical' ? 'מכני' : (li.lock_type || '');
-    const codeLabel = lockType === 'מכני' ? 'קוד מאסטר' : 'קוד תלמיד';
-    const codeValue = lockType === 'מכני' ? (li.master_code || '—') : (li.student_code || '—');
+    // For mechanical, the "code" is usually masterCode but Netanel sometimes stores it as userCode — try both.
+    // For digital, the customer's daily code is userCode (student_code); fall back to masterCode only if missing.
+    const codeValue = lockType === 'מכני'
+        ? (li.master_code || li.student_code || '—')
+        : (li.student_code || li.master_code || '—');
 
     const tags = [];
     if (f.is_urgent) tags.push('<span class="tag urgent"><i class="bi bi-fire"></i> דחוף</span>');
@@ -358,8 +372,8 @@ function renderCard(f) {
         <div class="info-row"><i class="bi bi-wrench"></i> ${esc(f.fault_type) || '—'}</div>
         ${f.description ? `<div class="description">${esc(f.description)}</div>` : ''}
         ${tags.length ? `<div class="meta-tags">${tags.join('')}</div>` : ''}
-        ${codeValue !== '—' ? `<div class="code-block">${esc(codeLabel)}: ${esc(codeValue)}</div>` : ''}
         ${li.lock_number ? `<div class="info-row"><i class="bi bi-lock"></i> מנעול ${esc(li.lock_number)}</div>` : ''}
+        ${codeValue !== '—' ? `<div class="code-block">קוד: ${esc(codeValue)}</div>` : ''}
         <div class="actions">
             ${statusBtn}
             ${waBtn}
@@ -409,9 +423,12 @@ async function sendCloseNotification(fault) {
     const lockType = locker.lock_type === 'digital' ? 'דיגיטלי'
                    : locker.lock_type === 'mechanical' ? 'מכני'
                    : '';
+    // Never send the physical lock_number to the customer — it isn't usable to open the locker.
+    // Mechanical: code is usually masterCode; Netanel sometimes stores it as userCode (student_code), so we fall back.
+    // Digital: code is the user's personal student_code.
     const code = lockType === 'מכני'
-        ? (locker.master_code || locker.lock_number || '')
-        : (locker.student_code || '');
+        ? (locker.master_code || locker.student_code || '')
+        : (locker.student_code || locker.master_code || '');
 
     const lines = [
         'שלום!',
