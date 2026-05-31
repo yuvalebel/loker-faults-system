@@ -126,6 +126,8 @@ _LOCKER_BASE_SQL = """
         l."userCode"                AS student_code,
         l."masterCode"              AS master_code,
         lk."lockNumber"             AS lock_number,
+        lk.code                     AS lock_code,
+        NULLIF(lk.code2, '')        AS lock_code2,
         l."studentId"               AS current_student_id,
         CASE
             WHEN l.status = 'Faulty'           THEN 'faulty'

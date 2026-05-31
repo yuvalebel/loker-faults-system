@@ -220,6 +220,8 @@ def get_faults():
                         "student_code": locker.get("student_code"),
                         "master_code": locker.get("master_code"),
                         "lock_number": locker.get("lock_number"),
+                        "lock_code": locker.get("lock_code"),
+                        "lock_code2": locker.get("lock_code2"),
                     }
 
             result.append(fault_dict)

@@ -337,11 +337,12 @@ function renderCard(f) {
 
     const li = f.locker_info || {};
     const lockType = li.lock_type === 'digital' ? 'דיגיטלי' : li.lock_type === 'mechanical' ? 'מכני' : (li.lock_type || '');
-    // For mechanical, the "code" is usually masterCode but Netanel sometimes stores it as userCode — try both.
-    // For digital, the customer's daily code is userCode (student_code); fall back to masterCode only if missing.
+    // Mechanical: the dial code lives on the Lock row itself (Lock.code, e.g. "17-23-13"), not on the Locker.
+    // Digital: the customer's daily code is the Locker's userCode (student_code).
+    // The Locker.masterCode is a digital-only fallback (technician override). Keep all fallbacks for safety.
     const codeValue = lockType === 'מכני'
-        ? (li.master_code || li.student_code || '—')
-        : (li.student_code || li.master_code || '—');
+        ? (li.lock_code || li.lock_code2 || li.master_code || li.student_code || '—')
+        : (li.student_code || li.master_code || li.lock_code || '—');
 
     const tags = [];
     if (f.is_urgent) tags.push('<span class="tag urgent"><i class="bi bi-fire"></i> דחוף</span>');
@@ -426,11 +427,11 @@ async function sendCloseNotification(fault) {
                    : locker.lock_type === 'mechanical' ? 'מכני'
                    : '';
     // Never send the physical lock_number to the customer — it isn't usable to open the locker.
-    // Mechanical: code is usually masterCode; Netanel sometimes stores it as userCode (student_code), so we fall back.
-    // Digital: code is the user's personal student_code.
+    // Mechanical: dial code lives on Lock.code (e.g. "17-23-13"). Fall back through code2 then the Locker codes.
+    // Digital: customer's personal code is on Locker.userCode (student_code).
     const code = lockType === 'מכני'
-        ? (locker.master_code || locker.student_code || '')
-        : (locker.student_code || locker.master_code || '');
+        ? (locker.lock_code || locker.lock_code2 || locker.master_code || locker.student_code || '')
+        : (locker.student_code || locker.master_code || locker.lock_code || '');
 
     const lines = [
         'שלום!',
