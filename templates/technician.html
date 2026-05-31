@@ -94,12 +94,14 @@ let selectedCabinet = null;  // null = (when school selected) show cabinet list.
 const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 // Strip the trailing building/cabinet suffix from a Hebrew compound name.
-// School-level: "עינב 1" / "עינב 3" → "עינב". Cabinet-level: "נרקיס 4" / "נרקיס 6" → "נרקיס".
-// Names without a trailing number ("מקיף ז' רביבים") are returned unchanged.
+// "עינב 1" / "עינב 3" → "עינב"; "נרקיס  4" → "נרקיס" (handles double-spaces in the DB).
+// Also strips anything AFTER the trailing number — "דליה 10 - כיתות ח'" → "דליה",
+// "שושנה  1- כיתות ז' " → "שושנה" — so different sub-labels collapse to the same compound.
+// Names without a digit-group ("מקיף ז' רביבים", "אסיף") are returned unchanged.
 function stripTrailingNumber(name) {
     const s = String(name || '').trim();
     if (!s) return 'לא ידוע';
-    return s.replace(/\s+\d+\s*$/, '').trim() || s;
+    return s.replace(/\s+\d+.*$/, '').trim() || s;
 }
 
 async function loadFaults() {
