@@ -93,15 +93,14 @@ let selectedSchool = null;   // null = show school list. Holds the *normalized* 
 let selectedCabinet = null;  // null = (when school selected) show cabinet list. Holds the *normalized* cabinet name (e.g. "נרקיס"), not "נרקיס 4".
 const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-// Strip the trailing building/cabinet suffix from a Hebrew compound name.
-// "עינב 1" / "עינב 3" → "עינב"; "נרקיס  4" → "נרקיס" (handles double-spaces in the DB).
-// Also strips anything AFTER the trailing number — "דליה 10 - כיתות ח'" → "דליה",
-// "שושנה  1- כיתות ז' " → "שושנה" — so different sub-labels collapse to the same compound.
-// Names without a digit-group ("מקיף ז' רביבים", "אסיף") are returned unchanged.
-function stripTrailingNumber(name) {
+// Cabinet "compound" = the first word of the cabinet name.
+// "נרקיס 4" / "נרקיס  6" / "דליה 10 - כיתות ח'" all collapse to their first token.
+// We deliberately do NOT normalize school names — none of the schools have trailing numbers,
+// and taking the first word would wrongly merge "אולפנת יבנה" with "אולפנת סגולה".
+function firstWord(name) {
     const s = String(name || '').trim();
     if (!s) return 'לא ידוע';
-    return s.replace(/\s+\d+.*$/, '').trim() || s;
+    return s.split(/\s+/)[0];
 }
 
 async function loadFaults() {
@@ -199,10 +198,10 @@ function renderSchoolList() {
     const cont = document.getElementById('cardsContainer');
     const faults = getFilteredFaults();
 
-    // Group by *compound* (normalized school name) so "עינב 1" + "עינב 3" appear as one "עינב" row.
+    // Group by school name (raw — schools have no trailing numbers in the data).
     const groups = {};
     for (const f of faults) {
-        const name = stripTrailingNumber(f.school_name);
+        const name = (f.school_name || '').trim() || 'לא ידוע';
         if (!groups[name]) groups[name] = { total: 0, urgent: 0 };
         groups[name].total += 1;
         if (f.is_urgent || f.books_stuck) groups[name].urgent += 1;
@@ -233,14 +232,13 @@ function renderSchoolList() {
 
 function renderCabinetList(schoolName) {
     const cont = document.getElementById('cardsContainer');
-    // schoolName is the normalized compound — pull every fault under any sub-school that normalizes to it.
     const schoolFaults = getFilteredFaults()
-        .filter(f => stripTrailingNumber(f.school_name) === schoolName);
+        .filter(f => ((f.school_name || '').trim() || 'לא ידוע') === schoolName);
 
-    // Group by *normalized* cabinet name so "נרקיס 4" + "נרקיס 6" appear as one "נרקיס" row.
+    // Group by *first word* of the cabinet name so "נרקיס 4" + "נרקיס 6" + "נרקיס  10" appear as one "נרקיס" row.
     const groups = {};
     for (const f of schoolFaults) {
-        const cab = stripTrailingNumber((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון');
+        const cab = firstWord((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון');
         if (!groups[cab]) groups[cab] = { total: 0, urgent: 0 };
         groups[cab].total += 1;
         if (f.is_urgent || f.books_stuck) groups[cab].urgent += 1;
@@ -278,10 +276,10 @@ function renderCabinetList(schoolName) {
 
 function renderFaultsForCabinet(schoolName, cabinetName) {
     const cont = document.getElementById('cardsContainer');
-    // cabinetName is the normalized cabinet (e.g. "נרקיס") — match all sub-cabinets within this school.
+    // cabinetName is the first-word compound (e.g. "נרקיס") — match all sub-cabinets within this school.
     const faults = getFilteredFaults()
-        .filter(f => stripTrailingNumber(f.school_name) === schoolName)
-        .filter(f => stripTrailingNumber((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון') === cabinetName)
+        .filter(f => ((f.school_name || '').trim() || 'לא ידוע') === schoolName)
+        .filter(f => firstWord((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון') === cabinetName)
         .sort((a, b) => {
             const ca = (a.locker_info && a.locker_info.cabinet_name) || '';
             const cb = (b.locker_info && b.locker_info.cabinet_name) || '';
