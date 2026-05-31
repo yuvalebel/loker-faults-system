@@ -90,13 +90,13 @@ let activeStatus = 'Open';
 let activeTech = localStorage.getItem('techFilter') || '';  // '' = הכל
 let searchQuery = '';
 let selectedSchool = null;   // null = show school list. Holds the *normalized* compound name (e.g. "עינב"), not the raw "עינב 1".
+let selectedCabinet = null;  // null = (when school selected) show cabinet list. Holds the *normalized* cabinet name (e.g. "נרקיס"), not "נרקיס 4".
 const TECH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-// Compound (מתחם) name = school name with the trailing building suffix removed.
-// In Netanel's DB schools are stored as "עינב 1", "עינב 3" etc — Talia treats those
-// as buildings inside the same compound "עינב". Names without a trailing number
-// (e.g. "מקיף ז' רביבים") are returned unchanged.
-function normalizeSchoolName(name) {
+// Strip the trailing building/cabinet suffix from a Hebrew compound name.
+// School-level: "עינב 1" / "עינב 3" → "עינב". Cabinet-level: "נרקיס 4" / "נרקיס 6" → "נרקיס".
+// Names without a trailing number ("מקיף ז' רביבים") are returned unchanged.
+function stripTrailingNumber(name) {
     const s = String(name || '').trim();
     if (!s) return 'לא ידוע';
     return s.replace(/\s+\d+\s*$/, '').trim() || s;
@@ -186,8 +186,10 @@ function renderTechChips() {
 function renderView() {
     if (selectedSchool === null) {
         renderSchoolList();
+    } else if (selectedCabinet === null) {
+        renderCabinetList(selectedSchool);
     } else {
-        renderFaultsForSchool(selectedSchool);
+        renderFaultsForCabinet(selectedSchool, selectedCabinet);
     }
 }
 
@@ -198,7 +200,7 @@ function renderSchoolList() {
     // Group by *compound* (normalized school name) so "עינב 1" + "עינב 3" appear as one "עינב" row.
     const groups = {};
     for (const f of faults) {
-        const name = normalizeSchoolName(f.school_name);
+        const name = stripTrailingNumber(f.school_name);
         if (!groups[name]) groups[name] = { total: 0, urgent: 0 };
         groups[name].total += 1;
         if (f.is_urgent || f.books_stuck) groups[name].urgent += 1;
@@ -227,12 +229,57 @@ function renderSchoolList() {
     });
 }
 
-function renderFaultsForSchool(schoolName) {
+function renderCabinetList(schoolName) {
     const cont = document.getElementById('cardsContainer');
-    // schoolName is the normalized compound (e.g. "עינב") — show every fault from any sub-school that normalizes to it.
-    // Sort by cabinet name (Hebrew collation) then by cell number, so cabinets stay grouped visually without an extra click.
+    // schoolName is the normalized compound — pull every fault under any sub-school that normalizes to it.
+    const schoolFaults = getFilteredFaults()
+        .filter(f => stripTrailingNumber(f.school_name) === schoolName);
+
+    // Group by *normalized* cabinet name so "נרקיס 4" + "נרקיס 6" appear as one "נרקיס" row.
+    const groups = {};
+    for (const f of schoolFaults) {
+        const cab = stripTrailingNumber((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון');
+        if (!groups[cab]) groups[cab] = { total: 0, urgent: 0 };
+        groups[cab].total += 1;
+        if (f.is_urgent || f.books_stuck) groups[cab].urgent += 1;
+    }
+    const cabinets = Object.entries(groups).sort((a, b) => {
+        if (b[1].total !== a[1].total) return b[1].total - a[1].total;
+        return a[0].localeCompare(b[0], 'he');
+    });
+
+    let html = `<div class="school-header">
+        <button class="back-btn" onclick="backToSchools()"><i class="bi bi-arrow-right"></i> חזרה</button>
+        <h2>${esc(schoolName)}</h2>
+    </div>`;
+
+    if (cabinets.length === 0) {
+        html += '<div class="empty-list"><i class="bi bi-inbox"></i><div>אין תקלות להצגה</div></div>';
+    } else {
+        html += cabinets.map(([name, info]) => {
+            const badgeCls = info.urgent > 0 ? 'school-count urgent' : 'school-count';
+            return `<button class="school-card" data-cabinet="${esc(name)}">
+                <div>
+                    <div class="school-name">${esc(name)}</div>
+                    ${info.urgent > 0 ? `<div style="font-size:0.78rem; color:#e53935; margin-top:2px;"><i class="bi bi-fire"></i> ${info.urgent} דחופות</div>` : ''}
+                </div>
+                <span class="${badgeCls}">${info.total}</span>
+            </button>`;
+        }).join('');
+    }
+    cont.innerHTML = html;
+
+    cont.querySelectorAll('.school-card').forEach(btn => {
+        btn.addEventListener('click', () => selectCabinet(btn.dataset.cabinet));
+    });
+}
+
+function renderFaultsForCabinet(schoolName, cabinetName) {
+    const cont = document.getElementById('cardsContainer');
+    // cabinetName is the normalized cabinet (e.g. "נרקיס") — match all sub-cabinets within this school.
     const faults = getFilteredFaults()
-        .filter(f => normalizeSchoolName(f.school_name) === schoolName)
+        .filter(f => stripTrailingNumber(f.school_name) === schoolName)
+        .filter(f => stripTrailingNumber((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון') === cabinetName)
         .sort((a, b) => {
             const ca = (a.locker_info && a.locker_info.cabinet_name) || '';
             const cb = (b.locker_info && b.locker_info.cabinet_name) || '';
@@ -244,8 +291,8 @@ function renderFaultsForSchool(schoolName) {
         });
 
     let html = `<div class="school-header">
-        <button class="back-btn" onclick="backToSchools()"><i class="bi bi-arrow-right"></i> חזרה</button>
-        <h2>${esc(schoolName)}</h2>
+        <button class="back-btn" onclick="backToCabinets()"><i class="bi bi-arrow-right"></i> חזרה</button>
+        <h2>${esc(schoolName)} • ${esc(cabinetName)}</h2>
     </div>`;
 
     if (faults.length === 0) {
@@ -258,12 +305,26 @@ function renderFaultsForSchool(schoolName) {
 
 function selectSchool(name) {
     selectedSchool = name;
+    selectedCabinet = null;
+    window.scrollTo(0, 0);
+    renderView();
+}
+
+function selectCabinet(name) {
+    selectedCabinet = name;
     window.scrollTo(0, 0);
     renderView();
 }
 
 function backToSchools() {
     selectedSchool = null;
+    selectedCabinet = null;
+    window.scrollTo(0, 0);
+    renderView();
+}
+
+function backToCabinets() {
+    selectedCabinet = null;
     window.scrollTo(0, 0);
     renderView();
 }
