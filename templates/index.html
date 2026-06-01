@@ -786,6 +786,12 @@
                 flex: 1 1 45%;
             }
         }
+
+        /* Collapsible equipment block on technician schedule cards */
+        details.equipment-details > summary { list-style: none; }
+        details.equipment-details > summary::-webkit-details-marker { display: none; }
+        details.equipment-details[open] > summary .bi-chevron-down { transform: rotate(180deg); transition: transform 0.15s; }
+        details.equipment-details > summary .bi-chevron-down { transition: transform 0.15s; }
     </style>
 </head>
 <body>
@@ -2180,19 +2186,27 @@
                 );
                 const needsMechanical = techLockTypes.has('mechanical');
                 const needsDigital = techLockTypes.has('digital');
-                const lockTypesLabel = needsMechanical && needsDigital
-                    ? 'מכאני + דיגיטלי'
-                    : needsMechanical ? 'מכאני'
-                    : needsDigital ? 'דיגיטלי'
+                const bagLabel = needsMechanical && needsDigital
+                    ? 'תיק מכאני + תיק דיגיטלי'
+                    : needsMechanical ? 'תיק מכאני'
+                    : needsDigital ? 'תיק דיגיטלי'
                     : 'לא ידוע';
 
                 let equipmentHtml = `
-                    <div class="alert alert-light border mb-3" style="font-size: 0.9rem;">
-                        <strong><i class="bi bi-briefcase"></i> ציוד לקחת</strong>
-                        <span class="badge bg-secondary ms-2">${lockTypesLabel}</span>
-                        <ul class="mb-0 mt-2 ps-3">
-                            ${EQUIPMENT_BASE.map(item => `<li>${item}</li>`).join('')}
-                        </ul>
+                    <details class="equipment-details alert alert-light border mb-3" style="font-size: 0.9rem;">
+                        <summary style="cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                            <span>
+                                <strong><i class="bi bi-briefcase"></i> ציוד לקחת</strong>
+                                <span class="badge bg-secondary ms-2">${bagLabel}</span>
+                            </span>
+                            <span class="text-muted" style="font-size: 0.85rem;">
+                                <i class="bi bi-chevron-down"></i>
+                            </span>
+                        </summary>
+                        <div class="mt-2">
+                            <ul class="mb-0 ps-3">
+                                ${EQUIPMENT_BASE.map(item => `<li>${item}</li>`).join('')}
+                            </ul>
                 `;
                 if (needsMechanical) {
                     equipmentHtml += `
@@ -2210,7 +2224,7 @@
                         </ul>
                     `;
                 }
-                equipmentHtml += '</div>';
+                equipmentHtml += '</div></details>';
 
                 html += `
                     <div class="col-12 col-md-6 col-lg-4 mb-4">

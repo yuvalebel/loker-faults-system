@@ -52,6 +52,9 @@
         .school-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
         .school-header h2 { font-size: 1.1rem; margin: 0; color: #1a237e; flex: 1; }
         .back-btn { background: #fff; border: 1px solid #dee2e6; padding: 6px 12px; border-radius: 10px; font-size: 0.9rem; color: #1a237e; }
+        .bag-banner { background: #fff8e1; border: 1px solid #ffd166; color: #8a6d00; padding: 10px 14px; border-radius: 12px; margin-bottom: 1rem; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+        .bag-banner i { color: #c79100; }
+        .bag-row { font-size: 0.8rem; color: #c79100; margin-top: 3px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
         @media (min-width: 768px) {
             .container-cards { max-width: 720px; margin: 0 auto; }
         }
@@ -194,17 +197,33 @@ function renderView() {
     }
 }
 
+// Returns the "תיק" label for a Set of lock types ('mechanical'/'digital').
+function bagLabel(lockTypeSet) {
+    const m = lockTypeSet.has('mechanical');
+    const d = lockTypeSet.has('digital');
+    if (m && d) return 'תיק מכאני + תיק דיגיטלי';
+    if (m) return 'תיק מכאני';
+    if (d) return 'תיק דיגיטלי';
+    return '';
+}
+
 function renderSchoolList() {
     const cont = document.getElementById('cardsContainer');
     const faults = getFilteredFaults();
 
     // Group by school name (raw — schools have no trailing numbers in the data).
     const groups = {};
+    const overallLockTypes = new Set();
     for (const f of faults) {
         const name = (f.school_name || '').trim() || 'לא ידוע';
-        if (!groups[name]) groups[name] = { total: 0, urgent: 0 };
+        if (!groups[name]) groups[name] = { total: 0, urgent: 0, lockTypes: new Set() };
         groups[name].total += 1;
         if (f.is_urgent || f.books_stuck) groups[name].urgent += 1;
+        const lt = f.locker_info && f.locker_info.lock_type;
+        if (lt === 'mechanical' || lt === 'digital') {
+            groups[name].lockTypes.add(lt);
+            overallLockTypes.add(lt);
+        }
     }
     const schools = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], 'he'));
 
@@ -213,16 +232,27 @@ function renderSchoolList() {
         return;
     }
 
-    cont.innerHTML = schools.map(([name, info]) => {
+    // Top banner — overall bags needed for today's filtered faults.
+    const overallBag = bagLabel(overallLockTypes);
+    const banner = overallBag
+        ? `<div class="bag-banner"><i class="bi bi-briefcase-fill"></i> ${overallBag}</div>`
+        : '';
+
+    const cards = schools.map(([name, info]) => {
         const badgeCls = info.urgent > 0 ? 'school-count urgent' : 'school-count';
+        const bag = bagLabel(info.lockTypes);
+        const bagRow = bag ? `<div class="bag-row"><i class="bi bi-briefcase"></i> ${bag}</div>` : '';
         return `<button class="school-card" data-school="${esc(name)}">
             <div>
                 <div class="school-name">${esc(name)}</div>
+                ${bagRow}
                 ${info.urgent > 0 ? `<div style="font-size:0.78rem; color:#e53935; margin-top:2px;"><i class="bi bi-fire"></i> ${info.urgent} דחופות</div>` : ''}
             </div>
             <span class="${badgeCls}">${info.total} תקלות</span>
         </button>`;
     }).join('');
+
+    cont.innerHTML = banner + cards;
 
     // Wire clicks via event delegation (avoids HTML-attribute escaping issues with Hebrew + quotes)
     cont.querySelectorAll('.school-card').forEach(btn => {
@@ -237,30 +267,44 @@ function renderCabinetList(schoolName) {
 
     // Group by *first word* of the cabinet name so "נרקיס 4" + "נרקיס 6" + "נרקיס  10" appear as one "נרקיס" row.
     const groups = {};
+    const schoolLockTypes = new Set();
     for (const f of schoolFaults) {
         const cab = firstWord((f.locker_info && f.locker_info.cabinet_name) || 'ללא ארון');
-        if (!groups[cab]) groups[cab] = { total: 0, urgent: 0 };
+        if (!groups[cab]) groups[cab] = { total: 0, urgent: 0, lockTypes: new Set() };
         groups[cab].total += 1;
         if (f.is_urgent || f.books_stuck) groups[cab].urgent += 1;
+        const lt = f.locker_info && f.locker_info.lock_type;
+        if (lt === 'mechanical' || lt === 'digital') {
+            groups[cab].lockTypes.add(lt);
+            schoolLockTypes.add(lt);
+        }
     }
     const cabinets = Object.entries(groups).sort((a, b) => {
         if (b[1].total !== a[1].total) return b[1].total - a[1].total;
         return a[0].localeCompare(b[0], 'he');
     });
 
+    const schoolBag = bagLabel(schoolLockTypes);
+    const bagBanner = schoolBag
+        ? `<div class="bag-banner"><i class="bi bi-briefcase-fill"></i> ${schoolBag}</div>`
+        : '';
+
     let html = `<div class="school-header">
         <button class="back-btn" onclick="backToSchools()"><i class="bi bi-arrow-right"></i> חזרה</button>
         <h2>${esc(schoolName)}</h2>
-    </div>`;
+    </div>${bagBanner}`;
 
     if (cabinets.length === 0) {
         html += '<div class="empty-list"><i class="bi bi-inbox"></i><div>אין תקלות להצגה</div></div>';
     } else {
         html += cabinets.map(([name, info]) => {
             const badgeCls = info.urgent > 0 ? 'school-count urgent' : 'school-count';
+            const cabBag = bagLabel(info.lockTypes);
+            const cabBagRow = cabBag ? `<div class="bag-row"><i class="bi bi-briefcase"></i> ${cabBag}</div>` : '';
             return `<button class="school-card" data-cabinet="${esc(name)}">
                 <div>
                     <div class="school-name">${esc(name)}</div>
+                    ${cabBagRow}
                     ${info.urgent > 0 ? `<div style="font-size:0.78rem; color:#e53935; margin-top:2px;"><i class="bi bi-fire"></i> ${info.urgent} דחופות</div>` : ''}
                 </div>
                 <span class="${badgeCls}">${info.total}</span>
