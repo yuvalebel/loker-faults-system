@@ -1590,22 +1590,43 @@
         // Fault type lists per locker type
         const FAULT_TYPES = {
             mechanical: [
-                'תקלה במנעול',
+                'מנעול התקלקל',
                 'נזק לדלת',
-                'מפתח אבוד',
+                'אין מנעול',
                 'לוקר לא נסגר',
                 'ציר דלת שבור',
                 'אחר'
             ],
             digital: [
-                'הקוד לא עובד',
-                'מסך לא מגיב',
-                'בעיה בסוללה',
-                'תקלה בלוח הקלדה',
-                'נעילת חירום',
+                'הקודן לא עובד',
+                'נזק לדלת',
+                'לוקר לא נסגר',
+                'ציר דלת שבור',
                 'אחר'
             ]
         };
+
+        // Equipment a technician needs to bring per lock type.
+        const EQUIPMENT_BASE = [
+            'ציוד בסיס (פטיש, מברגים, פליירים...)',
+            'אקדח ניטים',
+            'ניטים',
+            'מברגה',
+            'מקדחים למברגה',
+            'פטישון',
+            'מקדחים לפטישון',
+            'ברגי ג׳מבו לבטון וגבס',
+            'לום',
+            'דלתות ספייר'
+        ];
+        const EQUIPMENT_MECHANICAL_EXTRA = [
+            'מפתחות מאסטר'
+        ];
+        const EQUIPMENT_DIGITAL_EXTRA = [
+            'סוללות',
+            'קודנים',
+            'ספקי כוח משני סוגים'
+        ];
 
         function updateFaultTypeOptions() {
             const mechanical = document.getElementById('lockerMechanical').checked;
@@ -2149,47 +2170,101 @@
             
             assignments.forEach((tech, techIndex) => {
                 const schools = tech.schools || [];
-                
+
+                // Figure out which lock types this technician will encounter,
+                // based on lock_type returned per fault from /api/schedule.
+                const techLockTypes = new Set(
+                    (tech.faults || [])
+                        .map(f => f.lock_type)
+                        .filter(t => t === 'mechanical' || t === 'digital')
+                );
+                const needsMechanical = techLockTypes.has('mechanical');
+                const needsDigital = techLockTypes.has('digital');
+                const lockTypesLabel = needsMechanical && needsDigital
+                    ? 'מכאני + דיגיטלי'
+                    : needsMechanical ? 'מכאני'
+                    : needsDigital ? 'דיגיטלי'
+                    : 'לא ידוע';
+
+                let equipmentHtml = `
+                    <div class="alert alert-light border mb-3" style="font-size: 0.9rem;">
+                        <strong><i class="bi bi-briefcase"></i> ציוד לקחת</strong>
+                        <span class="badge bg-secondary ms-2">${lockTypesLabel}</span>
+                        <ul class="mb-0 mt-2 ps-3">
+                            ${EQUIPMENT_BASE.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                `;
+                if (needsMechanical) {
+                    equipmentHtml += `
+                        <div class="mt-2"><strong>ציוד נוסף — מכאני:</strong></div>
+                        <ul class="mb-0 ps-3">
+                            ${EQUIPMENT_MECHANICAL_EXTRA.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    `;
+                }
+                if (needsDigital) {
+                    equipmentHtml += `
+                        <div class="mt-2"><strong>ציוד נוסף — דיגיטלי:</strong></div>
+                        <ul class="mb-0 ps-3">
+                            ${EQUIPMENT_DIGITAL_EXTRA.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    `;
+                }
+                equipmentHtml += '</div>';
+
                 html += `
                     <div class="col-12 col-md-6 col-lg-4 mb-4">
                         <div class="technician-card">
                             <h5><i class="bi bi-person-badge"></i> טכנאי #${tech.technician_id}</h5>
                             <p class="mb-3">
-                                <strong>בתי ספר:</strong> ${schools.length} | 
+                                <strong>בתי ספר:</strong> ${schools.length} |
                                 <strong>תקלות:</strong> ${tech.total_faults}<br>
                                 <strong>ציון כולל:</strong> <span class="badge bg-primary">${tech.total_score.toFixed(2)}</span>
                             </p>
-                            
+
+                            ${equipmentHtml}
+
                             <!-- Schools Accordion -->
                             <div class="accordion" id="accordion-tech-${tech.technician_id}">
                 `;
-                
+
                 schools.forEach((school, schoolIndex) => {
                     const schoolId = `tech${tech.technician_id}-school${schoolIndex}`;
                     const urgentBadge = school.is_urgent ? '<span class="badge bg-danger ms-2">דחוף!</span>' : '';
-                    
+
+                    // Filter faults for this school
+                    const schoolFaults = tech.faults.filter(f => f.school_name === school.school_name);
+
+                    // Determine lock types present in this school
+                    const schoolLockTypes = new Set(
+                        schoolFaults.map(f => f.lock_type).filter(t => t === 'mechanical' || t === 'digital')
+                    );
+                    const schoolLockLabel = schoolLockTypes.has('mechanical') && schoolLockTypes.has('digital')
+                        ? 'מכאני + דיגיטלי'
+                        : schoolLockTypes.has('mechanical') ? 'מכאני'
+                        : schoolLockTypes.has('digital') ? 'דיגיטלי'
+                        : '—';
+
                     html += `
                         <div class="accordion-item">
                             <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" 
+                                <button class="accordion-button collapsed" type="button"
                                         data-bs-toggle="collapse" data-bs-target="#${schoolId}">
-                                    <strong>${school.school_name}</strong> 
+                                    <strong>${school.school_name}</strong>
                                     <span class="badge bg-secondary ms-2">${school.num_faults} תקלות</span>
                                     ${urgentBadge}
                                 </button>
                             </h2>
-                            <div id="${schoolId}" class="accordion-collapse collapse" 
+                            <div id="${schoolId}" class="accordion-collapse collapse"
                                  data-bs-parent="#accordion-tech-${tech.technician_id}">
                                 <div class="accordion-body">
                                     <small class="text-muted mb-2 d-block">
-                                        <i class="bi bi-geo-alt"></i> ${school.region} | 
-                                        <i class="bi bi-star-fill"></i> חומרה: ${school.avg_severity ? school.avg_severity.toFixed(1) : 'N/A'}/5
+                                        <i class="bi bi-geo-alt"></i> ${school.region} |
+                                        <i class="bi bi-star-fill"></i> חומרה: ${school.avg_severity ? school.avg_severity.toFixed(1) : 'N/A'}/5 |
+                                        <i class="bi bi-lock"></i> סוגי לוקרים: ${schoolLockLabel}
                                     </small>
                                     <div class="list-group">
                     `;
-                    
-                    // Filter faults for this school
-                    const schoolFaults = tech.faults.filter(f => f.school_name === school.school_name);
                     
                     schoolFaults.forEach(fault => {
                         const urgentIcon = (fault.books_stuck || fault.is_urgent) ? 

@@ -108,11 +108,17 @@ REGION_PROXIMITY = {
 }
 
 SEVERITY_MAP = {
+    "מנעול התקלקל": 5,
+    "הקודן לא עובד": 4,
+    "נזק לדלת": 3,
+    "לוקר לא נסגר": 3,
+    "ציר דלת שבור": 3,
+    "אין מנעול": 2,
+    "אחר": 1,
+    # Legacy names — kept until the one-shot migration runs in production.
     "תקלה במנעול": 5,
     "הקוד לא עובד": 4,
-    "נזק לדלת": 3,
     "מפתח אבוד": 2,
-    "אחר": 1,
 }
 
 
@@ -672,6 +678,14 @@ def schedule_technicians():
                     school_name = student_info.iloc[0].get("school_name", "Unknown")
                     student_name = f"{student_info.iloc[0]['fname']} {student_info.iloc[0]['lname']}"
 
+            # Lock type drives which equipment the technician needs to bring.
+            # adon_db.get_locker_by_id is TTL-cached so this stays cheap.
+            lock_type = None
+            if fault.locker_id:
+                locker = adon_db.get_locker_by_id(fault.locker_id)
+                if locker:
+                    lock_type = locker.get("lock_type")
+
             region = get_school_region(school_name)
             faults_data.append({
                 "fault_id": fault.id,
@@ -684,6 +698,7 @@ def schedule_technicians():
                 "books_stuck": fault.books_stuck,
                 "is_recurring": getattr(fault, "is_recurring", False),
                 "created_at": fault.created_at,
+                "lock_type": lock_type,
             })
 
         df = pd.DataFrame(faults_data)
