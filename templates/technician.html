@@ -382,11 +382,22 @@ function renderCard(f) {
     const li = f.locker_info || {};
     const lockType = li.lock_type === 'digital' ? 'דיגיטלי' : li.lock_type === 'mechanical' ? 'מכני' : (li.lock_type || '');
     // Mechanical: the dial code lives on the Lock row itself (Lock.code, e.g. "17-23-13"), not on the Locker.
-    // Digital: the customer's daily code is the Locker's userCode (student_code).
-    // The Locker.masterCode is a digital-only fallback (technician override). Keep all fallbacks for safety.
-    const codeValue = lockType === 'מכני'
-        ? (li.lock_code || li.lock_code2 || li.master_code || li.student_code || '—')
-        : (li.student_code || li.master_code || li.lock_code || '—');
+    // Digital: show BOTH student code and master code (both are useful to the technician on site).
+    const isDigital = lockType === 'דיגיטלי';
+    const mechCode = (li.lock_code || li.lock_code2 || li.master_code || li.student_code || '');
+    const studentCode = li.student_code || '';
+    const masterCode = li.master_code || '';
+
+    let codesBlock = '';
+    if (isDigital) {
+        if (studentCode) codesBlock += `<div class="code-block">קוד תלמיד: ${esc(studentCode)}</div>`;
+        if (masterCode) codesBlock += `<div class="code-block">קוד מאסטר: ${esc(masterCode)}</div>`;
+        if (!studentCode && !masterCode && li.lock_code) {
+            codesBlock += `<div class="code-block">קוד: ${esc(li.lock_code)}</div>`;
+        }
+    } else if (mechCode) {
+        codesBlock = `<div class="code-block">קוד: ${esc(mechCode)}</div>`;
+    }
 
     const tags = [];
     if (f.is_urgent) tags.push('<span class="tag urgent"><i class="bi bi-fire"></i> דחוף</span>');
@@ -420,7 +431,7 @@ function renderCard(f) {
         ${f.description ? `<div class="description">${esc(f.description)}</div>` : ''}
         ${tags.length ? `<div class="meta-tags">${tags.join('')}</div>` : ''}
         ${li.lock_number ? `<div class="info-row"><i class="bi bi-lock"></i> מנעול ${esc(li.lock_number)}</div>` : ''}
-        ${codeValue !== '—' ? `<div class="code-block">קוד: ${esc(codeValue)}</div>` : ''}
+        ${codesBlock}
         <div class="actions">
             ${statusBtn}
             ${waBtn}
