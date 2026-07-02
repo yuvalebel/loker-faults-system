@@ -855,7 +855,7 @@
                                         </label>
                                         <div class="student-search-wrapper">
                                             <input type="text" class="form-control form-control-lg" id="studentSearchInput"
-                                                   placeholder="הקלד שם, ת.ז, או בית ספר..."
+                                                   placeholder="הקלד שם תלמיד או טלפון הורה..."
                                                    autocomplete="off" dir="rtl">
                                             <input type="hidden" id="studentSelect">
                                             <div id="studentDropdown" class="student-dropdown" style="display:none;"></div>
@@ -1284,6 +1284,14 @@
             }
         }
 
+        // Canonical phone for search matching — mirrors _norm_phone in bot_api.py.
+        function normPhone(p) {
+            let d = String(p || '').replace(/\D/g, '');
+            if (d.startsWith('00')) d = d.slice(2);
+            if (d.startsWith('972')) d = '0' + d.slice(3);
+            return d;
+        }
+
         function setupStudentSearch() {
             const input = document.getElementById('studentSearchInput');
             const dropdown = document.getElementById('studentDropdown');
@@ -1298,12 +1306,16 @@
                     return;
                 }
 
+                // Find a student by name or by the parent phone they registered with.
                 const q = query.toLowerCase();
+                const qDigits = normPhone(query);
                 const matches = allStudents.filter(s => {
                     const fullName = `${s.fname} ${s.lname}`.toLowerCase();
-                    const idNum = (s.studentId || '').toLowerCase();
                     const school = (s.school_name || '').toLowerCase();
-                    return fullName.includes(q) || idNum.includes(q) || school.includes(q);
+                    const phone = normPhone(s.parentPhone);
+                    const byText = fullName.includes(q) || school.includes(q);
+                    const byPhone = qDigits.length >= 3 && phone.includes(qDigits);
+                    return byText || byPhone;
                 }).slice(0, 12);
 
                 if (matches.length === 0) {
@@ -1312,7 +1324,7 @@
                     dropdown.innerHTML = matches.map(s => {
                         const safeData = JSON.stringify(s).replace(/'/g, '&#39;');
                         return `<div class="student-option" data-id="${s.id}" data-student='${safeData}'>
-                            <strong>${s.fname} ${s.lname}</strong> &nbsp;|&nbsp; ת.ז: ${s.studentId} &nbsp;|&nbsp; ${s.school_name || 'אין ב"ס'}
+                            <strong>${s.fname} ${s.lname}</strong> &nbsp;|&nbsp; 📞 ${s.parentPhone || '—'} &nbsp;|&nbsp; ${s.school_name || 'אין ב"ס'}
                         </div>`;
                     }).join('');
 
@@ -1320,7 +1332,7 @@
                         opt.addEventListener('click', function() {
                             const student = JSON.parse(this.dataset.student.replace(/&#39;/g, "'"));
                             document.getElementById('studentSelect').value = student.id;
-                            input.value = `${student.fname} ${student.lname} | ת.ז: ${student.studentId}`;
+                            input.value = `${student.fname} ${student.lname} | ${student.parentPhone || ''}`;
                             dropdown.style.display = 'none';
                             showStudentInfo(student);
                             loadStudentLocker(student.id);

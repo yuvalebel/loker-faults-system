@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 import db as adon_db
 from auth import init_auth
+from bot_api import bot_bp, init_bot_api
 
 load_dotenv()
 
@@ -141,6 +142,17 @@ def _students_dataframe() -> pd.DataFrame:
             ]
         )
     return pd.DataFrame(rows)
+
+
+# Wire the bot API blueprint (token-authenticated /api/bot/* surface).
+# A bot fault is created exactly like a form fault (severity derived from
+# fault_type, no technician assigned on creation), so only these are injected.
+init_bot_api(
+    OurSession=OurSession,
+    Fault=Fault,
+    get_severity=get_severity,
+)
+app.register_blueprint(bot_bp)
 
 
 # ============================================================================
@@ -348,6 +360,70 @@ def update_fault_with_notes():
         })
     except Exception as e:
         session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        session.close()
+
+
+@app.route("/api/faults/notify-resolved", methods=["POST"])
+def notify_resolved():
+    """Send the 'fault resolved' WhatsApp to the customer — via the bot's number.
+
+    Called by the technician UI after closing a fault. We assemble the fields the
+    approved WhatsApp template needs and POST them to the bot's /api/notify, which
+    sends the message from the official Adon Locker number. The FAULTS_API_KEY and
+    the bot URL stay server-side (this route is behind the OAuth guard).
+    """
+    import requests
+
+    data = request.get_json(silent=True) or {}
+    fault_id = data.get("fault_id")
+
+    session = OurSession()
+    try:
+        fault = session.query(Fault).filter(Fault.id == fault_id).first()
+        if not fault:
+            return jsonify({"success": False, "error": "Fault not found"}), 404
+
+        student = adon_db.get_student_by_id(fault.student_id_ext) or {}
+        phone = student.get("parentPhone")
+        if not phone:
+            return jsonify({"success": False, "error": "no_parent_phone"}), 400
+
+        locker = adon_db.get_locker_by_id(fault.locker_id) if fault.locker_id else None
+        locker = locker or {}
+
+        payload = {
+            "phone": phone,
+            "student_name": f"{student.get('fname') or ''} {student.get('lname') or ''}".strip(),
+            "school_name": student.get("school_name") or "",
+            "cabinet_name": locker.get("cabinet_name") or "",
+            "cell_number": locker.get("cell_number") or "",
+            "student_code": locker.get("student_code") or "",
+            "fault_id": fault.id,
+        }
+
+        bot_url = os.environ.get("BOT_NOTIFY_URL")
+        faults_api_key = os.environ.get("FAULTS_API_KEY")
+        if not bot_url or not faults_api_key:
+            return jsonify({"success": False, "error": "bot_not_configured"}), 503
+
+        resp = requests.post(
+            bot_url.rstrip("/") + "/api/notify",
+            json=payload,
+            headers={"X-API-Key": faults_api_key},
+            timeout=10,
+        )
+        if resp.ok:
+            return jsonify({"success": True, "bot_status": resp.status_code})
+        return jsonify({
+            "success": False,
+            "error": "bot_error",
+            "bot_status": resp.status_code,
+        }), 502
+    except requests.RequestException as e:
+        return jsonify({"success": False, "error": f"bot_unreachable: {e}"}), 502
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         session.close()

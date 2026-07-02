@@ -147,6 +147,10 @@ def init_auth(app: Flask) -> None:
             return None
         if request.path.startswith("/static/"):
             return None
+        # The bot API is a separate surface: it can't do Google login, so it
+        # bypasses this guard and is authenticated by X-API-Key inside bot_api.py.
+        if request.path.startswith("/api/bot/"):
+            return None
         if current_user():
             return None
         # Send everything else through Google login.

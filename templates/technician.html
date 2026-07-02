@@ -442,7 +442,9 @@ function renderCard(f) {
 
 async function updateStatus(faultId, newStatus) {
     const fault = allFaults.find(f => f.id === faultId);
-    const confirmMsg = newStatus === 'Closed' ? 'לסגור את התקלה? תיפתח חלון WhatsApp לשליחת הודעה להורה.' : 'לפתוח את התקלה מחדש?';
+    const confirmMsg = newStatus === 'Closed'
+        ? 'לסגור את התקלה? תישלח הודעת וואטסאפ אוטומטית לתלמיד מהמספר של אדון לוקר.'
+        : 'לפתוח את התקלה מחדש?';
     if (!confirm(confirmMsg)) return;
     try {
         const r = await fetch('/api/update_status', {
@@ -452,8 +454,10 @@ async function updateStatus(faultId, newStatus) {
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
 
-        // After a successful close, fire a WhatsApp message to the parent.
-        if (newStatus === 'Closed' && fault && fault.parentPhone) {
+        // After a successful close, send the "resolved" WhatsApp via the bot's
+        // number (server-side). The fault is already closed at this point, so a
+        // messaging failure never blocks the close.
+        if (newStatus === 'Closed' && fault) {
             await sendCloseNotification(fault);
         }
 
@@ -464,48 +468,20 @@ async function updateStatus(faultId, newStatus) {
 }
 
 async function sendCloseNotification(fault) {
-    // Re-fetch the locker so the parent gets the CURRENT code (in case it was edited).
-    let locker = fault.locker_info || {};
-    if (fault.locker_id) {
-        try {
-            const r = await fetch('/api/locker/' + encodeURIComponent(fault.locker_id));
-            if (r.ok) {
-                const data = await r.json();
-                if (data && data.locker) locker = data.locker;
-            }
-        } catch (e) {
-            console.warn('Could not refresh locker info; using cached', e);
+    try {
+        const r = await fetch('/api/faults/notify-resolved', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({fault_id: fault.id})
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.success) {
+            const reason = data && data.error ? ' (' + data.error + ')' : '';
+            alert('התקלה נסגרה, אך שליחת הוואטסאפ לתלמיד נכשלה' + reason + '. אפשר לשלוח ידנית בכפתור הוואטסאפ.');
         }
+    } catch (e) {
+        alert('התקלה נסגרה, אך שליחת הוואטסאפ לתלמיד נכשלה: ' + e.message);
     }
-
-    const lockType = locker.lock_type === 'digital' ? 'דיגיטלי'
-                   : locker.lock_type === 'mechanical' ? 'מכני'
-                   : '';
-    // Never send the physical lock_number to the customer — it isn't usable to open the locker.
-    // Mechanical: dial code lives on Lock.code (e.g. "17-23-13"). Fall back through code2 then the Locker codes.
-    // Digital: customer's personal code is on Locker.userCode (student_code).
-    const code = lockType === 'מכני'
-        ? (locker.lock_code || locker.lock_code2 || locker.master_code || locker.student_code || '')
-        : (locker.student_code || locker.master_code || locker.lock_code || '');
-
-    const lines = [
-        'שלום!',
-        '',
-        `הלוקר של ${fault.student_name || ''} טופל ואפשר להשתמש בו שוב.`,
-        '',
-        '📍 בית ספר: ' + (fault.school_name || ''),
-        '🗄 ארון: ' + (locker.cabinet_name || ''),
-        '🔢 תא: ' + (locker.cell_number || ''),
-    ];
-    if (code) lines.push('🔑 קוד: ' + code);
-    lines.push('');
-    lines.push('בהצלחה,');
-    lines.push('אדון לוקר');
-
-    const message = lines.join('\n');
-    const phone = cleanPhone(fault.parentPhone);
-    const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
-    window.open(url, '_blank');
 }
 
 function cleanPhone(p) {
