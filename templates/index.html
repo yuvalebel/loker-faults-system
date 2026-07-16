@@ -1535,6 +1535,9 @@
         }
         
         async function updateFaultStatus(faultId, newStatus) {
+            if (newStatus === 'Closed') {
+                if (!confirm('לסגור את התקלה? תישלח הודעת וואטסאפ אוטומטית לתלמיד מהמספר של אדון לוקר.')) return;
+            }
             try {
                 const response = await fetch('/api/update_status', {
                     method: 'POST',
@@ -1546,10 +1549,16 @@
                         status: newStatus
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
+                    // Closing from the dashboard now also notifies the student via the
+                    // bot — same as the technician screen. Best-effort: a messaging
+                    // failure never blocks the close.
+                    if (newStatus === 'Closed') {
+                        await sendResolvedNotification(faultId);
+                    }
                     loadFaults(); // Refresh
                 } else {
                     alert('❌ שגיאה: ' + result.error);
@@ -1557,6 +1566,23 @@
             } catch (error) {
                 console.error('Error updating status:', error);
                 alert('שגיאה בעדכון סטטוס');
+            }
+        }
+
+        async function sendResolvedNotification(faultId) {
+            try {
+                const r = await fetch('/api/faults/notify-resolved', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_id: faultId })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.success) {
+                    const reason = data && data.error ? ' (' + data.error + ')' : '';
+                    alert('התקלה נסגרה, אך שליחת הוואטסאפ לתלמיד נכשלה' + reason + '.');
+                }
+            } catch (e) {
+                alert('התקלה נסגרה, אך שליחת הוואטסאפ לתלמיד נכשלה: ' + e.message);
             }
         }
         
