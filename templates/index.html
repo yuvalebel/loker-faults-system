@@ -1058,8 +1058,12 @@
                             </div>
                             
                             <!-- Bulk Actions Toolbar -->
-                            <div id="bulkActionsBar" class="alert alert-primary d-flex justify-content-between align-items-center mb-2" style="display: none !important;">
+                            <div id="bulkActionsBar" class="alert alert-primary d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2" style="display: none !important;">
                                 <span><i class="bi bi-check2-square"></i> נבחרו <strong id="bulkCount">0</strong> תקלות</span>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="bulkNotify">
+                                    <label class="form-check-label" for="bulkNotify">שלח הודעת "טופל" לתלמידים בסגירה</label>
+                                </div>
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-success" onclick="bulkUpdate('Closed')"><i class="bi bi-check-circle"></i> סגור תקלות שנבחרו</button>
                                     <button class="btn btn-warning" onclick="bulkUpdate('Open')"><i class="bi bi-arrow-counterclockwise"></i> פתח מחדש</button>
@@ -1585,6 +1589,17 @@
                 alert('התקלה נסגרה, אך שליחת הוואטסאפ לתלמיד נכשלה: ' + e.message);
             }
         }
+
+        // Quiet variant for bulk close — best-effort, no per-fault alert.
+        async function sendResolvedNotificationQuiet(faultId) {
+            try {
+                await fetch('/api/faults/notify-resolved', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_id: faultId })
+                });
+            } catch (e) { /* best-effort */ }
+        }
         
         async function runScheduleAlgorithm() {
             const numTechnicians = document.getElementById('numTechnicians').value;
@@ -1867,16 +1882,28 @@
                 return;
             }
 
+            const notify = newStatus === 'Closed' && !!document.getElementById('bulkNotify')?.checked;
             const verb = newStatus === 'Closed' ? 'לסגור' : 'לפתוח מחדש';
-            if (!confirm(`האם ${verb} ${targets.length} תקלות?`)) return;
+            let confirmMsg = `האם ${verb} ${targets.length} תקלות?`;
+            if (newStatus === 'Closed') {
+                confirmMsg += notify
+                    ? `\n\n📱 תישלח הודעת "טופל" ל-${targets.length} התלמידים.`
+                    : '\n\nℹ️ לא תישלח הודעה לתלמידים.';
+            }
+            if (!confirm(confirmMsg)) return;
 
-            const results = await Promise.allSettled(targets.map(cb =>
-                fetch('/api/update_status', {
+            const results = await Promise.allSettled(targets.map(async cb => {
+                const faultId = parseInt(cb.dataset.faultId);
+                const r = await fetch('/api/update_status', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({fault_id: parseInt(cb.dataset.faultId), status: newStatus})
-                }).then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
-            ));
+                    body: JSON.stringify({fault_id: faultId, status: newStatus})
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                await r.json();
+                if (notify) await sendResolvedNotificationQuiet(faultId);
+                return faultId;
+            }));
 
             const failed = results.filter(r => r.status === 'rejected').length;
             if (failed > 0) {
@@ -2504,7 +2531,11 @@
                 alert('נא לבחור פעולה שבוצעה');
                 return;
             }
-            
+
+            if (status === 'Closed') {
+                if (!confirm('לסגור את התקלה? תישלח הודעת וואטסאפ אוטומטית לתלמיד מהמספר של אדון לוקר.')) return;
+            }
+
             try {
                 const response = await fetch('/api/faults/update', {
                     method: 'POST',
@@ -2523,6 +2554,10 @@
                 
                 if (result.success) {
                     alert('✅ העדכון נשמר בהצלחה!');
+
+                    if (status === 'Closed') {
+                        await sendResolvedNotification(currentEditingFault);
+                    }
                     
                     // Update the fault in allFaults array
                     const faultIndex = allFaults.findIndex(f => f.id === currentEditingFault);
