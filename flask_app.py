@@ -318,13 +318,23 @@ def _notify_bot_fault_resolved(fault, session):
         locker = adon_db.get_locker_by_id(fault.locker_id) if fault.locker_id else None
         locker = locker or {}
 
+        # The usable code depends on lock type (ported from 93650d0): mechanical
+        # locks carry the dial code on Lock.code (lock_code); digital locks use
+        # the student's userCode. Never send the physical lock_number.
+        if locker.get("lock_type") == "mechanical":
+            code = (locker.get("lock_code") or locker.get("lock_code2")
+                    or locker.get("master_code") or locker.get("student_code") or "")
+        else:
+            code = (locker.get("student_code") or locker.get("master_code")
+                    or locker.get("lock_code") or "")
+
         payload = {
             "phone": phone,
             "student_name": f"{student.get('fname') or ''} {student.get('lname') or ''}".strip(),
             "school_name": student.get("school_name") or "",
             "cabinet_name": locker.get("cabinet_name") or "",
             "cell_number": locker.get("cell_number") or "",
-            "student_code": locker.get("student_code") or "",
+            "student_code": code,
             "fault_id": fault.id,
         }
 
