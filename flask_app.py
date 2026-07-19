@@ -295,6 +295,96 @@ def create_fault():
         session.close()
 
 
+def _notify_bot_fault_resolved(fault, session):
+    """Tell the BOT this fault was resolved — WhatsApp to the customer + 'טופל' on
+    the bot's console (incident boundary + closing note, bot-side).
+
+    Shared by EVERY close path (Shilo 2026-07-16: some close buttons were wired,
+    some weren't — the customer only got the resolved-WhatsApp from the technician
+    screen). Server-side on the status TRANSITION, so present and future buttons
+    are all covered. Best-effort: a bot hiccup must never fail the status update.
+    The bot dedups by fault_id, so a double trigger (e.g. the technician screen's
+    explicit notify + this hook) sends at most ONE WhatsApp.
+    Returns (ok: bool, detail: str).
+    """
+    import requests
+
+    try:
+        student = adon_db.get_student_by_id(fault.student_id_ext) or {}
+        phone = student.get("parentPhone")
+        if not phone:
+            return False, "no_parent_phone"
+
+        locker = adon_db.get_locker_by_id(fault.locker_id) if fault.locker_id else None
+        locker = locker or {}
+
+        payload = {
+            "phone": phone,
+            "student_name": f"{student.get('fname') or ''} {student.get('lname') or ''}".strip(),
+            "school_name": student.get("school_name") or "",
+            "cabinet_name": locker.get("cabinet_name") or "",
+            "cell_number": locker.get("cell_number") or "",
+            "student_code": locker.get("student_code") or "",
+            "fault_id": fault.id,
+        }
+
+        bot_url = os.environ.get("BOT_NOTIFY_URL")
+        faults_api_key = os.environ.get("FAULTS_API_KEY")
+        if not bot_url or not faults_api_key:
+            return False, "bot_not_configured"
+
+        resp = requests.post(
+            bot_url.rstrip("/") + "/api/notify",
+            json=payload,
+            headers={"X-API-Key": faults_api_key},
+            timeout=10,
+        )
+        if resp.ok:
+            return True, f"bot_status_{resp.status_code}"
+        return False, f"bot_error_{resp.status_code}"
+    except requests.RequestException as e:
+        return False, f"bot_unreachable: {e}"
+    except Exception as e:  # never let the notify break the close itself
+        return False, str(e)
+
+def _notify_bot_fault_status(fault, new_status):
+    """Internal status sync to the bot (2026-07-19, operator-controlled notify).
+
+    Fires on EVERY status transition, both directions (close AND reopen). The bot
+    updates its conversation cards/console silently — it never messages the
+    customer from this call. The customer WhatsApp goes out ONLY via
+    /api/faults/notify-resolved (the dedicated button) -> bot /api/notify.
+    Best-effort: a bot hiccup never fails the status update itself.
+    Returns (ok: bool, detail: str).
+    """
+    import requests
+
+    try:
+        student = adon_db.get_student_by_id(fault.student_id_ext) or {}
+        phone = student.get("parentPhone")
+        if not phone:
+            return False, "no_parent_phone"
+
+        bot_url = os.environ.get("BOT_NOTIFY_URL")
+        faults_api_key = os.environ.get("FAULTS_API_KEY")
+        if not bot_url or not faults_api_key:
+            return False, "bot_not_configured"
+
+        resp = requests.post(
+            bot_url.rstrip("/") + "/api/fault-status",
+            json={"fault_id": fault.id, "phone": phone, "status": new_status},
+            headers={"X-API-Key": faults_api_key},
+            timeout=10,
+        )
+        if resp.ok:
+            return True, f"bot_status_{resp.status_code}"
+        return False, f"bot_error_{resp.status_code}"
+    except requests.RequestException as e:
+        return False, f"bot_unreachable: {e}"
+    except Exception as e:  # never let the sync break the status update itself
+        return False, str(e)
+
+
 @app.route("/api/update_status", methods=["POST"])
 def update_status():
     data = request.get_json()
@@ -304,6 +394,7 @@ def update_status():
         if not fault:
             return jsonify({"success": False, "error": "Fault not found"}), 404
 
+        old_status = fault.status
         new_status = data["status"]
         fault.status = new_status
 
@@ -316,7 +407,15 @@ def update_status():
             fault.assigned_technician = data["technician"]
 
         session.commit()
-        return jsonify({"success": True, "message": "סטטוס עודכן בהצלחה"})
+
+        # Status transition → SILENT bot sync (2026-07-19): the bot updates its
+        # cards/console; the customer WhatsApp is the operator's dedicated button.
+        bot_synced = None
+        if new_status != old_status:
+            ok, detail = _notify_bot_fault_status(fault, new_status)
+            bot_synced = {"ok": ok, "detail": detail}
+
+        return jsonify({"success": True, "message": "סטטוס עודכן בהצלחה", "bot_synced": bot_synced})
     except Exception as e:
         session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -334,6 +433,7 @@ def update_fault_with_notes():
         if not fault:
             return jsonify({"success": False, "error": "Fault not found"}), 404
 
+        old_status = fault.status
         if "status" in data:
             new_status = data["status"]
             fault.status = new_status
@@ -348,9 +448,17 @@ def update_fault_with_notes():
             fault.assigned_technician = data["technician"]
 
         session.commit()
+
+        # Status transition → SILENT bot sync (same hook as /api/update_status).
+        bot_synced = None
+        if "status" in data and data["status"] != old_status:
+            ok, detail = _notify_bot_fault_status(fault, data["status"])
+            bot_synced = {"ok": ok, "detail": detail}
+
         return jsonify({
             "success": True,
             "message": "התקלה עודכנה בהצלחה",
+            "bot_synced": bot_synced,
             "fault": {
                 "id": fault.id,
                 "status": fault.status,
@@ -374,8 +482,6 @@ def notify_resolved():
     sends the message from the official Adon Locker number. The FAULTS_API_KEY and
     the bot URL stay server-side (this route is behind the OAuth guard).
     """
-    import requests
-
     data = request.get_json(silent=True) or {}
     fault_id = data.get("fault_id")
 
@@ -385,44 +491,15 @@ def notify_resolved():
         if not fault:
             return jsonify({"success": False, "error": "Fault not found"}), 404
 
-        student = adon_db.get_student_by_id(fault.student_id_ext) or {}
-        phone = student.get("parentPhone")
-        if not phone:
-            return jsonify({"success": False, "error": "no_parent_phone"}), 400
-
-        locker = adon_db.get_locker_by_id(fault.locker_id) if fault.locker_id else None
-        locker = locker or {}
-
-        payload = {
-            "phone": phone,
-            "student_name": f"{student.get('fname') or ''} {student.get('lname') or ''}".strip(),
-            "school_name": student.get("school_name") or "",
-            "cabinet_name": locker.get("cabinet_name") or "",
-            "cell_number": locker.get("cell_number") or "",
-            "student_code": locker.get("student_code") or "",
-            "fault_id": fault.id,
-        }
-
-        bot_url = os.environ.get("BOT_NOTIFY_URL")
-        faults_api_key = os.environ.get("FAULTS_API_KEY")
-        if not bot_url or not faults_api_key:
-            return jsonify({"success": False, "error": "bot_not_configured"}), 503
-
-        resp = requests.post(
-            bot_url.rstrip("/") + "/api/notify",
-            json=payload,
-            headers={"X-API-Key": faults_api_key},
-            timeout=10,
-        )
-        if resp.ok:
-            return jsonify({"success": True, "bot_status": resp.status_code})
-        return jsonify({
-            "success": False,
-            "error": "bot_error",
-            "bot_status": resp.status_code,
-        }), 502
-    except requests.RequestException as e:
-        return jsonify({"success": False, "error": f"bot_unreachable: {e}"}), 502
+        # Single source of truth (2026-07-16): the same helper every close path uses.
+        ok, detail = _notify_bot_fault_resolved(fault, session)
+        if ok:
+            return jsonify({"success": True, "detail": detail})
+        if detail == "no_parent_phone":
+            return jsonify({"success": False, "error": detail}), 400
+        if detail == "bot_not_configured":
+            return jsonify({"success": False, "error": detail}), 503
+        return jsonify({"success": False, "error": detail}), 502
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:

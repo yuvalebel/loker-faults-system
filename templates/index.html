@@ -1534,6 +1534,26 @@
             }
         }
         
+        async function sendResolvedWa(faultId) {
+            if (!confirm('לשלוח ללקוח הודעת "התקלה טופלה" בוואטסאפ מהמספר של אדון לוקר?')) return;
+            try {
+                const r = await fetch('/api/faults/notify-resolved', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({fault_id: faultId})
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok && data.success) {
+                    alert('הודעת הוואטסאפ נשלחה ללקוח.');
+                } else {
+                    const reason = data && data.error ? ' (' + data.error + ')' : '';
+                    alert('שליחת הוואטסאפ נכשלה' + reason + '. אפשר לשלוח ידנית בכפתור הוואטסאפ הירוק.');
+                }
+            } catch (e) {
+                alert('שליחת הוואטסאפ נכשלה: ' + e.message);
+            }
+        }
+
         async function updateFaultStatus(faultId, newStatus) {
             try {
                 const response = await fetch('/api/update_status', {
@@ -1714,6 +1734,10 @@
                             ${fault.status !== 'Open' ?
                                 `<button class="btn btn-warning" onclick="updateFaultStatus(${fault.id}, 'Open')" title="פתח מחדש">
                                     <i class="bi bi-arrow-clockwise"></i>
+                                </button>` : ''}
+                            ${fault.status !== 'Open' ?
+                                `<button class="btn btn-outline-success" onclick="sendResolvedWa(${fault.id})" title="שלח ללקוח הודעת טופל בוואטסאפ">
+                                    <i class="bi bi-whatsapp"></i>
                                 </button>` : ''}
                         </div>
                     </td>
